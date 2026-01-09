@@ -1085,7 +1085,7 @@
         // Initialize Supabase
         const SUPABASE_URL = 'https://lcdcwtisiojbtsysjeic.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxjZGN3dGlzaW9qYnRzeXNqZWljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY0Mzg5NzAsImV4cCI6MjA1MjAxNDk3MH0.Onk69BuaVBHN9F9wV__W-g_DOa9klgM';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         const questions = [
             {
@@ -1781,7 +1781,7 @@
         // Supabase Functions
         async function saveReportToSupabase(overallScore, dimensionScores) {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('test_reports')
                     .insert([
                         {
@@ -1803,7 +1803,7 @@
 
         async function loadAllReports() {
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('test_reports')
                     .select('*')
                     .order('created_at', { ascending: false });
