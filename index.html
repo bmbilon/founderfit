@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FounderFit Score™ Survey</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
             --color-primary: #1f8a70;
@@ -1037,6 +1038,15 @@
                     <li><strong>Dimension profiles matter as much as overall score</strong> - a founder with low Openness but high Conviction may be validating an existing thesis effectively</li>
                 </ul>
             </div>
+
+            <div class="admin-section" id="reports-section">
+                <h2>📋 Test Reports</h2>
+                <p><em>View all completed assessments with detailed clinical analysis</em></p>
+                <div id="reports-list" style="margin-top: 20px;">
+                    <p style="text-align: center; color: #666;">Loading reports...</p>
+                </div>
+                <div id="report-detail" style="display: none; margin-top: 30px;"></div>
+            </div>
         </div>
     </div>
 
@@ -1072,6 +1082,11 @@
     </div>
 
     <script>
+        // Initialize Supabase
+        const SUPABASE_URL = 'https://lcdcwtisiojbtsysjeic.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_Onk69BuaVBHN9F9wV__W-g_DOa9klgM';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
         const questions = [
             {
                 id: 'A1',
@@ -1341,9 +1356,10 @@
             }
         }
 
-        function openAdminPanel() {
+        async function openAdminPanel() {
             document.getElementById('admin-panel').classList.add('active');
             document.getElementById('survey-container').style.display = 'none';
+            await displayReportsList();
         }
 
         function closeAdminPanel() {
@@ -1383,7 +1399,7 @@
                         input.name = `q-${idx}`;
                         input.value = opt.value;
                         input.onchange = () => {
-                            responses[q.id] = { dimension: q.dimension, value: parseInt(opt.value) };
+                            responses[q.id] = { dimension: q.dimension, value: parseInt(opt.value), type: q.type };
                             document.querySelectorAll(`#question-${idx} .option`).forEach(o => o.classList.remove('selected'));
                             label.classList.add('selected');
                         };
@@ -1406,7 +1422,7 @@
                         input.value = opt.value;
                         input.id = `q${idx}-opt${optIdx}`;
                         input.onchange = () => {
-                            responses[q.id] = { dimension: q.dimension, value: parseInt(opt.value) };
+                            responses[q.id] = { dimension: q.dimension, value: parseInt(opt.value), type: q.type };
                         };
                         const label = document.createElement('label');
                         label.className = 'likert-label';
@@ -1472,13 +1488,22 @@
                 if (!dimensions[data.dimension]) {
                     dimensions[data.dimension] = [];
                 }
-                dimensions[data.dimension].push(data.value);
+                // Normalize scores to 0-100 scale based on question type
+                let normalizedScore;
+                if (data.type === 'binary') {
+                    // Binary: 0-1 → multiply by 100
+                    normalizedScore = data.value * 100;
+                } else {
+                    // Likert: 1-5 → normalize to 0-100
+                    normalizedScore = ((data.value - 1) / 4) * 100;
+                }
+                dimensions[data.dimension].push(normalizedScore);
             });
 
             const dimensionScores = {};
             Object.entries(dimensions).forEach(([dim, values]) => {
                 const avg = values.reduce((a, b) => a + b, 0) / values.length;
-                dimensionScores[dim] = Math.round((avg / 5) * 100);
+                dimensionScores[dim] = Math.round(avg);
             });
 
             const overallScore = Math.round(
@@ -1516,6 +1541,9 @@
                 div.innerHTML = `<div class="dimension-name">${dim}</div><div class="dimension-value">${score}</div>`;
                 dimensionResults.appendChild(div);
             });
+
+            // Save report to Supabase
+            saveReportToSupabase(score, dimensionScores);
         }
 
         function resetSurvey() {
@@ -1532,6 +1560,264 @@
             const q = questions[currentQuestion];
             document.getElementById('btn-next').disabled = !responses[q.id];
         });
+
+        // Report Display Functions
+        async function displayReportsList() {
+            const reports = await loadAllReports();
+            const listContainer = document.getElementById('reports-list');
+            const detailContainer = document.getElementById('report-detail');
+            
+            detailContainer.style.display = 'none';
+            
+            if (reports.length === 0) {
+                listContainer.innerHTML = '<p style="text-align: center; color: #666;">No reports yet. Complete a test to generate your first report.</p>';
+                return;
+            }
+            
+            let html = '<div style="display: grid; gap: 15px;">';
+            reports.forEach((report, index) => {
+                const date = new Date(report.created_at).toLocaleString();
+                const scoreColor = report.overall_score >= 80 ? '#27ae60' : report.overall_score >= 65 ? '#2aaa8a' : report.overall_score >= 50 ? '#e67e22' : '#c0152f';
+                html += `
+                    <div style="background: white; border: 2px solid #e0e0e0; border-radius: 8px; padding: 20px; cursor: pointer; transition: all 0.2s;" 
+                         onmouseover="this.style.borderColor='#1f8a70'" 
+                         onmouseout="this.style.borderColor='#e0e0e0'" 
+                         onclick="viewReportDetail('${report.id}')">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>Report #${reports.length - index}</strong>
+                                <div style="font-size: 13px; color: #666; margin-top: 5px;">${date}</div>
+                            </div>
+                            <div style="font-size: 32px; font-weight: bold; color: ${scoreColor};">${report.overall_score}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            listContainer.innerHTML = html;
+        }
+
+        async function viewReportDetail(reportId) {
+            const reports = await loadAllReports();
+            const report = reports.find(r => r.id === reportId);
+            
+            if (!report) return;
+            
+            const detailContainer = document.getElementById('report-detail');
+            const listContainer = document.getElementById('reports-list');
+            
+            listContainer.style.display = 'none';
+            detailContainer.style.display = 'block';
+            
+            // Generate clinical report
+            const html = generateClinicalReport(report);
+            detailContainer.innerHTML = html;
+        }
+
+        function generateClinicalReport(report) {
+            const date = new Date(report.created_at).toLocaleString();
+            const scoreInterpretation = getScoreInterpretation(report.overall_score);
+            
+            let html = `
+                <button onclick="displayReportsList()" style="background: #1f8a70; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin-bottom: 20px;">← Back to Reports</button>
+                
+                <div style="background: white; border: 2px solid #1f8a70; border-radius: 12px; padding: 30px;">
+                    <h2 style="margin-top: 0; color: #1f8a70;">Clinical Assessment Report</h2>
+                    
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 25px;">
+                        <p style="margin: 5px 0;"><strong>Report ID:</strong> ${report.id.substring(0, 8)}</p>
+                        <p style="margin: 5px 0;"><strong>Date:</strong> ${date}</p>
+                        <p style="margin: 5px 0;"><strong>Overall Score:</strong> <span style="font-size: 24px; font-weight: bold; color: #1f8a70;">${report.overall_score}/100</span></p>
+                        <p style="margin: 5px 0; font-style: italic;">${scoreInterpretation}</p>
+                    </div>
+                    
+                    <h3 style="color: #1f8a70; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px;">Dimension Analysis</h3>
+            `;
+            
+            // Dimension interpretations
+            Object.entries(report.dimension_scores).forEach(([dimension, score]) => {
+                const interpretation = getDimensionInterpretation(dimension, score);
+                const scoreColor = score >= 70 ? '#27ae60' : score >= 40 ? '#2aaa8a' : '#e67e22';
+                html += `
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid ${scoreColor};">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h4 style="margin: 0; color: #2c3e50;">${dimension}</h4>
+                            <span style="font-size: 24px; font-weight: bold; color: ${scoreColor};">${score}</span>
+                        </div>
+                        <p style="margin: 10px 0 0 0; color: #555; line-height: 1.6;">${interpretation}</p>
+                    </div>
+                `;
+            });
+            
+            // Identified strengths
+            const strengths = Object.entries(report.dimension_scores).filter(([_, score]) => score >= 70);
+            if (strengths.length > 0) {
+                html += `
+                    <h3 style="color: #27ae60; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; margin-top: 30px;">✅ Identified Strengths</h3>
+                    <ul style="line-height: 1.8;">
+                `;
+                strengths.forEach(([dimension, score]) => {
+                    html += `<li><strong>${dimension}</strong> (${score}/100): Strong capacity in this area, represents a leadership asset</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            // Development areas
+            const developmentAreas = Object.entries(report.dimension_scores).filter(([_, score]) => score < 40);
+            if (developmentAreas.length > 0) {
+                html += `
+                    <h3 style="color: #e67e22; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; margin-top: 30px;">🔶 Development Areas</h3>
+                    <ul style="line-height: 1.8;">
+                `;
+                developmentAreas.forEach(([dimension, score]) => {
+                    html += `<li><strong>${dimension}</strong> (${score}/100): Opportunity for structured development and coaching</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            // Coaching recommendations
+            html += `
+                <h3 style="color: #1f8a70; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; margin-top: 30px;">📝 Coaching Recommendations</h3>
+                <div style="background: #fff8e6; border-left: 4px solid #e67e22; padding: 20px; border-radius: 8px;">
+            `;
+            
+            const recommendations = getCoachingRecommendations(report.dimension_scores);
+            recommendations.forEach(rec => {
+                html += `<p style="margin: 10px 0;"><strong>${rec.dimension}:</strong> ${rec.recommendation}</p>`;
+            });
+            
+            html += '</div></div>';
+            
+            return html;
+        }
+
+        function getScoreInterpretation(score) {
+            if (score >= 80) return 'Founder personality strongly aligned with success indicators. High potential for building and scaling ventures.';
+            if (score >= 65) return 'Above-average alignment with strong entrepreneurial characteristics. Solid foundation for venture building.';
+            if (score >= 50) return 'Average alignment with solid foundational traits. Areas of strength balanced with development opportunities.';
+            return 'Below-average alignment. Significant development opportunities identified for coaching focus.';
+        }
+
+        function getDimensionInterpretation(dimension, score) {
+            const interpretations = {
+                'Openness': {
+                    high: 'Demonstrates strong exploratory tendencies and comfort with ambiguity. Likely to identify novel opportunities and pivot effectively when needed.',
+                    medium: 'Balanced approach between exploration and execution. Can adapt when necessary while maintaining strategic focus.',
+                    low: 'Prefers structured execution over exploration. Excels at validating existing theses and following proven methodologies.'
+                },
+                'Conscientiousness': {
+                    high: 'Strong attention to detail and process orientation. Likely to maintain rigorous systems and documentation, ensuring operational excellence.',
+                    medium: 'Balances detail orientation with big-picture thinking. Can delegate effectively while maintaining oversight of critical processes.',
+                    low: 'Focuses on vision and strategic direction over operational details. Delegates execution effectively but may need support in process management.'
+                },
+                'Energy & Drive': {
+                    high: 'Exceptional work capacity and resilience. Maintains high output and recovers quickly from setbacks. Monitor for burnout risk.',
+                    medium: 'Sustainable work pace with good recovery patterns. Balances intensity with self-care and team delegation.',
+                    low: 'Measured approach to work intensity. May benefit from energy management strategies and delegation frameworks.'
+                },
+                'Conviction': {
+                    high: 'Strong confidence in strategic direction. Makes decisive commitments and maintains course despite obstacles. Ensure validation mechanisms are in place.',
+                    medium: 'Balanced confidence with openness to feedback. Can commit to direction while remaining receptive to market signals.',
+                    low: 'Thoughtful and measured in commitments. Seeks validation before major decisions. May benefit from decision-making frameworks.'
+                },
+                'Emotional Stability': {
+                    high: 'Exceptional composure under pressure. Maintains steady leadership presence during uncertainty. Strong asset for team morale.',
+                    medium: 'Generally stable with normal stress responses. Manages pressure effectively with appropriate support systems.',
+                    low: 'More reactive to stress and uncertainty. May benefit from emotional regulation strategies and leadership coaching.'
+                },
+                'Skepticism & Adaptability': {
+                    high: 'Independent thinker who questions assumptions. Adapts quickly based on evidence. Ensure team alignment on strategic pivots.',
+                    medium: 'Balances independent thinking with collaborative decision-making. Open to input while maintaining strategic clarity.',
+                    low: 'Values proven approaches and expert guidance. Builds on established frameworks. May need support in rapid adaptation scenarios.'
+                }
+            };
+            
+            const dimData = interpretations[dimension];
+            if (!dimData) return 'Interpretation not available for this dimension.';
+            
+            if (score >= 70) return dimData.high;
+            if (score >= 40) return dimData.medium;
+            return dimData.low;
+        }
+
+        function getCoachingRecommendations(dimensionScores) {
+            const recommendations = [];
+            
+            Object.entries(dimensionScores).forEach(([dimension, score]) => {
+                let rec = '';
+                
+                if (dimension === 'Openness') {
+                    rec = score >= 70 ? 'Leverage exploratory strength for opportunity identification. Ensure validation frameworks prevent over-pivoting.' :
+                          score >= 40 ? 'Maintain balanced approach. Consider structured innovation time to explore adjacent opportunities.' :
+                          'Focus on execution excellence. Partner with exploratory thinkers for strategic optionality.';
+                } else if (dimension === 'Conscientiousness') {
+                    rec = score >= 70 ? 'Leverage process strength for operational excellence. Ensure detail focus doesn\'t slow strategic agility.' :
+                          score >= 40 ? 'Continue balanced approach. Document critical processes while maintaining strategic flexibility.' :
+                          'Delegate operational details. Build strong COO/operations partner to complement visionary focus.';
+                } else if (dimension === 'Energy & Drive') {
+                    rec = score >= 70 ? 'Monitor for burnout. Implement recovery protocols and delegation strategies for sustainable scaling.' :
+                          score >= 40 ? 'Maintain sustainable pace. Continue current energy management and delegation practices.' :
+                          'Develop energy optimization strategies. Focus on high-leverage activities and team empowerment.';
+                } else if (dimension === 'Conviction') {
+                    rec = score >= 70 ? 'Strong conviction is an asset. Implement regular validation checkpoints to ensure market alignment.' :
+                          score >= 40 ? 'Balanced conviction serves you well. Continue integrating feedback while maintaining strategic clarity.' :
+                          'Build decision confidence through validation frameworks. Consider advisory board for strategic guidance.';
+                } else if (dimension === 'Emotional Stability') {
+                    rec = score >= 70 ? 'Leverage composure as leadership strength. Model calm decision-making for team during uncertainty.' :
+                          score >= 40 ? 'Continue effective stress management. Maintain support systems for high-pressure periods.' :
+                          'Develop emotional regulation strategies. Consider executive coaching for leadership presence development.';
+                } else if (dimension === 'Skepticism & Adaptability') {
+                    rec = score >= 70 ? 'Independent thinking is valuable. Ensure team alignment when making strategic pivots.' :
+                          score >= 40 ? 'Balanced approach serves you well. Continue integrating diverse perspectives in decision-making.' :
+                          'Leverage proven frameworks and expert guidance. Build advisory network for strategic validation.';
+                }
+                
+                recommendations.push({ dimension, recommendation: rec });
+            });
+            
+            return recommendations;
+        }
+
+        // Supabase Functions
+        async function saveReportToSupabase(overallScore, dimensionScores) {
+            try {
+                const { data, error } = await supabase
+                    .from('test_reports')
+                    .insert([
+                        {
+                            overall_score: overallScore,
+                            dimension_scores: dimensionScores,
+                            responses: responses
+                        }
+                    ]);
+                
+                if (error) {
+                    console.error('Error saving report:', error);
+                } else {
+                    console.log('Report saved successfully');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+            }
+        }
+
+        async function loadAllReports() {
+            try {
+                const { data, error } = await supabase
+                    .from('test_reports')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                
+                if (error) {
+                    console.error('Error loading reports:', error);
+                    return [];
+                }
+                return data;
+            } catch (err) {
+                console.error('Error:', err);
+                return [];
+            }
+        }
 
         initSurvey();
     </script>
