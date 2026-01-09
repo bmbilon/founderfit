@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FounderFit Score™ Survey</title>
+    <style>
+        :root {
+            --color-primary: #1f8a70;
+            --color-primary-light: #2aaa8a;
+            --color-primary-dark: #166b54;
+            --color-secondary: #f5f5f5;
+            --color-text: #2c3e50;
+            --color-text-light: #7f8c8d;
+            --color-border: #e0e0e0;
+            --color-success: #27ae60;
+            --color-warning: #e67e22;
+            --color-danger: #c0152f;
+            --color-bg-light: #f8f9fa;
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.12);
+        }
+
+        * { box-sizing: border-box; }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: var(--color-text);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+        }
+
+        .admin-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            z-index: 1000;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-md);
+        }
+
+        .admin-button:hover {
+            background: var(--color-primary-dark);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .admin-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .admin-modal.active {
+            display: flex;
+        }
+
+        .admin-modal-content {
+            background: white;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            max-width: 500px;
+            width: 90%;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .admin-modal-content h2 {
+            margin-top: 0;
+            color: var(--color-primary);
+            font-size: 24px;
+        }
+
+        .admin-modal-content input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--color-border);
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            transition: border-color 0.2s ease;
+        }
+
+        .admin-modal-content input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+        }
+
+        .admin-modal-content button {
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-right: 10px;
+        }
+
+        .admin-modal-content button:hover {
+            background: var(--color-primary-dark);
+        }
+
+        .admin-modal-content button.cancel {
+            background: var(--color-secondary);
+            color: var(--color-text);
+            border: 1px solid var(--color-border);
+        }
+
+        .admin-modal-content button.cancel:hover {
+            background: var(--color-border);
+        }
+
+        .admin-error {
+            color: var(--color-danger);
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .admin-panel {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: white;
+            z-index: 2000;
+            overflow-y: auto;
+        }
+
+        .admin-panel.active {
+            display: block;
+        }
+
+        .admin-header {
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+            color: white;
+            padding: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 2001;
+        }
+
+        .admin-header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .admin-close {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .admin-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .admin-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 30px;
+        }
+
+        .admin-section {
+            margin-bottom: 50px;
+            background: var(--color-bg-light);
+            padding: 30px;
+            border-radius: 12px;
+            border-left: 4px solid var(--color-primary);
+        }
+
+        .admin-section h2 {
+            margin-top: 0;
+            color: var(--color-primary);
+            font-size: 20px;
+            border-bottom: 2px solid var(--color-border);
+            padding-bottom: 15px;
+        }
+
+        .admin-section h3 {
+            color: var(--color-text);
+            font-size: 16px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .dimension-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .dimension-table th {
+            background: var(--color-primary);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .dimension-table td {
+            padding: 12px;
+            border-bottom: 1px solid var(--color-border);
+            font-size: 14px;
+        }
+
+        .dimension-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .dimension-table tr:hover {
+            background: var(--color-bg-light);
+        }
+
+        .dimension-table .q-id {
+            font-weight: 600;
+            color: var(--color-primary);
+        }
+
+        .score-band {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid var(--color-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .score-band-range {
+            font-weight: 600;
+            color: var(--color-primary);
+            min-width: 80px;
+        }
+
+        .coaching-box {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid var(--color-warning);
+        }
+
+        .coaching-box strong {
+            color: var(--color-warning);
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+            color: white;
+            padding: 50px 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .header h1 {
+            margin: 0 0 8px 0;
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            margin: 8px 0;
+            font-size: 15px;
+            opacity: 0.95;
+            position: relative;
+            z-index: 1;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.25);
+            margin-top: 25px;
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+            z-index: 1;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
+            width: 0%;
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 3px;
+        }
+
+        .progress-text {
+            font-size: 13px;
+            margin-top: 12px;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+            font-weight: 500;
+        }
+
+        .content {
+            padding: 50px 40px;
+        }
+
+        .question-container {
+            margin-bottom: 40px;
+            display: none;
+        }
+
+        .question-container.active {
+            display: block;
+            animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes fadeIn {
+            from { 
+                opacity: 0; 
+                transform: translateY(12px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
+        }
+
+        .question-number {
+            font-size: 12px;
+            color: var(--color-text-light);
+            font-weight: 600;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .question-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--color-text);
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .question-type {
+            font-size: 12px;
+            color: var(--color-text-light);
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+
+        .option {
+            background: white;
+            border: 2px solid var(--color-border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .option:hover {
+            border-color: var(--color-primary);
+            background: rgba(31, 138, 112, 0.05);
+        }
+
+        .option.selected {
+            border-color: var(--color-primary);
+            background: rgba(31, 138, 112, 0.1);
+            font-weight: 600;
+        }
+
+        .option input[type="radio"] {
+            margin-right: 12px;
+            margin-top: 2px;
+            cursor: pointer;
+            accent-color: var(--color-primary);
+            flex-shrink: 0;
+        }
+
+        .option-text {
+            flex: 1;
+        }
+
+        .likert-scale {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin-top: 20px;
+        }
+
+        .likert-option {
+            text-align: center;
+        }
+
+        .likert-option input[type="radio"] {
+            display: none;
+        }
+
+        .likert-label {
+            display: block;
+            padding: 12px 8px;
+            border: 2px solid var(--color-border);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            font-weight: 500;
+            background: white;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            word-break: break-word;
+            line-height: 1.3;
+        }
+
+        .likert-option input[type="radio"]:checked + .likert-label {
+            border-color: var(--color-primary);
+            background: rgba(31, 138, 112, 0.1);
+            color: var(--color-primary);
+            font-weight: 600;
+        }
+
+        .likert-label:hover {
+            border-color: var(--color-primary);
+            background: rgba(31, 138, 112, 0.05);
+        }
+
+        .likert-legend {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--color-text-light);
+            font-style: italic;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
+            justify-content: space-between;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-prev {
+            background: var(--color-secondary);
+            color: var(--color-text);
+            border: 1px solid var(--color-border);
+        }
+
+        .btn-prev:hover:not(:disabled) {
+            background: var(--color-border);
+        }
+
+        .btn-prev:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-next {
+            background: var(--color-primary);
+            color: white;
+            flex: 1;
+        }
+
+        .btn-next:hover {
+            background: var(--color-primary-light);
+        }
+
+        .btn-next:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .results-container {
+            display: none;
+            text-align: center;
+        }
+
+        .results-container.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .score-display {
+            font-size: 64px;
+            font-weight: 700;
+            color: var(--color-primary);
+            margin: 20px 0;
+        }
+
+        .score-interpretation {
+            font-size: 16px;
+            color: var(--color-text);
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .dimension-scores {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-top: 30px;
+            text-align: left;
+        }
+
+        .dimension-item {
+            background: var(--color-secondary);
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 4px solid var(--color-primary);
+        }
+
+        .dimension-name {
+            font-weight: 600;
+            color: var(--color-text);
+            margin-bottom: 8px;
+        }
+
+        .dimension-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--color-primary);
+        }
+
+        .btn-reset {
+            background: var(--color-secondary);
+            color: var(--color-text);
+            border: 1px solid var(--color-border);
+            margin-top: 20px;
+        }
+
+        .btn-reset:hover {
+            background: var(--color-border);
+        }
+
+        @media (max-width: 768px) {
+            .header { padding: 30px 20px; }
+            .header h1 { font-size: 22px; }
+            .content { padding: 20px; }
+            .dimension-scores { grid-template-columns: 1fr; }
+            .button-group { flex-direction: column; }
+            .btn-prev { order: 2; }
+            .btn-next { order: 1; }
+            .likert-scale { grid-template-columns: repeat(5, 1fr); gap: 4px; }
+            .likert-label { padding: 8px 2px; font-size: 10px; min-height: 80px; }
+            .option { flex-direction: column; }
+            .option input[type="radio"] { margin-right: 0; margin-bottom: 8px; }
+            .admin-button { top: 10px; right: 10px; padding: 8px 12px; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <button class="admin-button" onclick="openAdminLogin()">🔐 Admin</button>
+
+    <div class="admin-modal" id="admin-login-modal">
+        <div class="admin-modal-content">
+            <h2>Administrator Access</h2>
+            <div class="admin-error" id="admin-error" style="display: none;"></div>
+            <input type="password" id="admin-password" placeholder="Enter password" onkeypress="if(event.key==='Enter') checkAdminPassword()">
+            <div style="text-align: right;">
+                <button class="cancel" onclick="closeAdminLogin()">Cancel</button>
+                <button onclick="checkAdminPassword()">Login</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-panel" id="admin-panel">
+        <div class="admin-header">
+            <h1>Administrator Panel - FounderFit Score™ v2.1</h1>
+            <button class="admin-close" onclick="closeAdminPanel()">Close</button>
+        </div>
+        <div class="admin-content">
+            <div class="admin-section">
+                <h2>📊 Survey Overview</h2>
+                <p><strong>Total Questions:</strong> 22</p>
+                <p><strong>Question Types:</strong> Binary choices (12) + Likert scale 1-5 (10)</p>
+                <p><strong>Dimensions Assessed:</strong> 6 key founder personality traits</p>
+                <p><strong>Scoring Method:</strong> Dimension averages converted to 0-100 scale, then overall average</p>
+            </div>
+
+            <div class="admin-section">
+                <h2>📋 Dimensions & Questions Breakdown</h2>
+                
+                <h3>Dimension 1: Openness (5 questions)</h3>
+                <p><em>Measures willingness to explore new ideas, challenge conventions, and embrace experimentation.</em></p>
+                <table class="dimension-table">
+                    <thead>
+                        <tr>
+                            <th>Q#</th>
+                            <th>ID</th>
+                            <th>Question</th>
+                            <th>Type</th>
+                            <th>Answer Interpretation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1</td>
+                            <td class="q-id">A1</td>
+                            <td>Novel market opportunity vs. strategic fit</td>
+                            <td>Binary</td>
+                            <td>0 = Strategic, 1 = Exploratory</td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td class="q-id">A2</td>
+                            <td>Product development approach</td>
+                            <td>Binary</td>
+                            <td>0 = Data-driven, 1 = Experimental</td>
+                        </tr>
+                        <tr>
+                            <td>3</td>
+                            <td class="q-id">A3</td>
+                            <td>Industry conventions</td>
+                            <td>Binary</td>
+                            <td>0 = Respectful, 1 = Challenging</td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td class="q-id">A4</td>
+                            <td>Learning new technology</td>
+                            <td>Binary</td>
+                            <td>0 = Foundational, 1 = Hands-on</td>
+                        </tr>
+                        <tr>
+                            <td>5</td>
+                            <td class="q-id">A5</td>
+                            <td>Decisions with incomplete information</td>
+                            <td>Likert</td>
+                            <td>1 = Cautious, 5 = Confident</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p><strong>Scoring:</strong> Average of all 5 responses, scaled to 0-100</p>
+
+                <h3>Dimension 2: Conscientiousness (3 questions)</h3>
+                <p><em>Measures attention to detail, follow-through, and operational rigor as the business scales.</em></p>
+                <table class="dimension-table">
+                    <thead>
+                        <tr>
+                            <th>Q#</th>
+                            <th>ID</th>
+                            <th>Question</th>
+                            <th>Type</th>
+                            <th>Answer Interpretation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>6</td>
+                            <td class="q-id">BCONS1</td>
+                            <td>Complex project management</td>
+                            <td>Binary</td>
+                            <td>0 = Vision-focused, 1 = Detail-oriented</td>
+                        </tr>
+                        <tr>
+                            <td>7</td>
+                            <td class="q-id">BCONS2</td>
+                            <td>Operational tasks at scale</td>
+                            <td>Binary</td>
+                            <td>0 = Delegating, 1 = Hands-on</td>
+                        </tr>
+                        <tr>
+                            <td>8</td>
+                            <td class="q-id">BCONS3</td>
+                            <td>Project commitment vs. new opportunity</td>
+                            <td>Likert</td>
+                            <td>1 = Abandon easily, 5 = Complete regardless</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p><strong>Scoring:</strong> Average of all 3 responses, scaled to 0-100</p>
+
+                <h3>Dimension 3: Energy & Drive (4 questions)</h3>
+                <p><em>Measures resilience, ambition, goal orientation, and ability to rally teams.</em></p>
+                <table class="dimension-table">
+                    <thead>
+                        <tr>
+                            <th>Q#</th>
+                            <th>ID</th>
+                            <th>Question</th>
+                            <th>Type</th>
+                            <th>Answer Interpretation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>9</td>
+                            <td class="q-id">C1</td>
+                            <td>Response to major setback</td>
+                            <td>Binary</td>
+                            <td>0 = Reflective, 1 = Rapid pivot</td>
+                        </tr>
+                        <tr>
+                            <td>10</td>
+                            <td class="q-id">C2</td>
+                            <td>Approach to growth targets</td>
+                            <td>Binary</td>
+                            <td>0 = Realistic, 1 = Audacious</td>
+                        </tr>
+                        <tr>
+                            <td>11</td>
+                            <td class="q-id">C3</td>
+                            <td>Team leadership style</td>
+                            <td>Binary</td>
+                            <td>0 = One-on-one, 1 = Vision-rallying</td>
+                        </tr>
+                        <tr>
+                            <td>12</td>
+                            <td class="q-id">C4</td>
+                            <td>Multi-year goal commitment</td>
+                            <td>Likert</td>
+                            <td>1 = Abandons easily, 5 = Obsessive</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p><strong>Scoring:</strong> Average of all 4 responses, scaled to 0-100</p>
+
+                <h3>Dimension 4: Conviction (3 questions)</h3>
+                <p><em>Measures confidence in strategic direction, defensibility of thesis, and resistance to influence.</em></p>
+                <table class="dimension-table">
+                    <thead>
+                        <tr>
+                            <th>Q#</th>
+                            <th>ID</th>
+                            <th>Question</th>
+                            <th>Type</th>
+                            <th>Answer Interpretation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>13</td>
+                            <td class="q-id">DCONV1</td>
+                            <td>Disagreement with team/investors</td>
+                            <td>Binary</td>
+                            <td>0 = Open to adjustment, 1 = Confident defense</td>
+                        </tr>
+                        <tr>
+                            <td>14</td>
+                            <td class="q-id">DCONV2</td>
+                            <td>Strategy challenged/questioned</td>
+                            <td>Binary</td>
+                            <td>0 = Open to learning, 1 = Defend thesis</td>
+                        </tr>
+                        <tr>
+                            <td>15</td>
+                            <td class="q-id">DCONV3</td>
+                            <td>Establish strategic direction</td>
+                            <td>Likert</td>
+                            <td>1 = Market-reactive, 5 = Vision-driven</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p><strong>Scoring:</strong> Average of all 3 responses, scaled to 0-100</p>
+
+                <h3>Dimension 5: Emotional Stability (3 questions)</h3>
+                <p><em>Measures composure under pressure, stress management, and decision confidence despite uncertainty.</em></p>
+                <table class="dimension-table">
+                    <thead>
+                        <tr>
+                            <th>Q#</th>
+                            <th>ID</th>
+                            <th>Question</th>
+                            <th>Type</th>
+                            <th>Answer Interpretation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>16</td>
+                            <td class="q-id">E1</td>
+                            <td>Multiple simultaneous crises</td>
+                            <td>Binary</td>
+                            <td>0 = Deliberate pauses, 1 = Ruthless prioritization</td>
+                        </tr>
+                        <tr>
+                            <td>17</td>
+                            <td class="q-id">E2</td>
+                            <td>Self-doubt in decisions</td>
+                            <td>Binary</td>
+                            <td>0 = Seeks validation, 1 = Moves confidently</td>
+                        </tr>
+                        <tr>
+                            <td>18</td>
+                            <td class="q-id">E3</td>
+                            <td>Performance under pressure</td>
+                            <td>Likert</td>
+                            <td>1 = Visibly stressed, 5 = Calm & deliberate</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p><strong>Scoring:</strong> Average of all 3 responses, scaled to 0-100</p>
+
+                <h3>Dimension 6: Skepticism & Adaptability (4 questions)</h3>
+                <p><em>Measures independent thinking, resistance to groupthink, and willingness to pivot based on data.</em></p>
+                <table class="dimension-table">
+                    <thead>
+                        <tr>
+                            <th>Q#</th>
+                            <th>ID</th>
+                            <th>Question</th>
+                            <th>Type</th>
+                            <th>Answer Interpretation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>19</td>
+                            <td class="q-id">F1</td>
+                            <td>Experienced advisor suggestions</td>
+                            <td>Binary</td>
+                            <td>0 = Weight track record, 1 = Test independently</td>
+                        </tr>
+                        <tr>
+                            <td>20</td>
+                            <td class="q-id">F2</td>
+                            <td>View differs from group consensus</td>
+                            <td>Binary</td>
+                            <td>0 = Shift to align, 1 = Articulate & defend</td>
+                        </tr>
+                        <tr>
+                            <td>21</td>
+                            <td class="q-id">F3</td>
+                            <td>Established industry approaches</td>
+                            <td>Likert</td>
+                            <td>1 = Follow as written, 5 = Reinvent</td>
+                        </tr>
+                        <tr>
+                            <td>22</td>
+                            <td class="q-id">F4</td>
+                            <td>Data shows strategy needs to shift</td>
+                            <td>Binary</td>
+                            <td>0 = Analyze thoroughly, 1 = Adjust promptly</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p><strong>Scoring:</strong> Average of all 4 responses, scaled to 0-100</p>
+            </div>
+
+            <div class="admin-section">
+                <h2>🎯 Overall Score Calculation</h2>
+                <p><strong>Final FounderFit Score</strong> = Average of all 6 dimension scores (0-100 scale)</p>
+                <h3>Score Interpretation Bands:</h3>
+                <div class="score-band">
+                    <div class="score-band-range">80-100</div>
+                    <div>Founder personality strongly aligned with success indicators. Your profile suggests high potential for building and scaling ventures.</div>
+                </div>
+                <div class="score-band">
+                    <div class="score-band-range">65-79</div>
+                    <div>Above-average alignment with founder success profile. You demonstrate strong entrepreneurial characteristics with room for development.</div>
+                </div>
+                <div class="score-band">
+                    <div class="score-band-range">50-64</div>
+                    <div>Average alignment with founder success profile. You have solid foundational traits with opportunities to strengthen key areas.</div>
+                </div>
+                <div class="score-band">
+                    <div class="score-band-range">0-49</div>
+                    <div>Below-average alignment with founder success profile. Consider how you might develop key entrepreneurial characteristics.</div>
+                </div>
+            </div>
+
+            <div class="admin-section">
+                <h2>🔢 Answer Key & Scoring Logic</h2>
+                <h3>Binary Questions (0 or 1)</h3>
+                <ul>
+                    <li>Both answers are valid responses</li>
+                    <li><strong>Scoring:</strong> Value / 5 × 100 to normalize to 0-100 scale
+                        <ul>
+                            <li>Answer = 0 → contributes 0 points</li>
+                            <li>Answer = 1 → contributes 20 points</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <h3>Likert Questions (1-5)</h3>
+                <ul>
+                    <li><strong>Scoring:</strong> (Value - 1) / 4 × 100 to normalize to 0-100 scale
+                        <ul>
+                            <li>Answer = 1 → 0 points</li>
+                            <li>Answer = 2 → 25 points</li>
+                            <li>Answer = 3 → 50 points</li>
+                            <li>Answer = 4 → 75 points</li>
+                            <li>Answer = 5 → 100 points</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <h3>Dimension Calculation</h3>
+                <ul>
+                    <li>Average all responses within a dimension</li>
+                    <li>Convert to 0-100 scale using same normalization</li>
+                    <li>Round to nearest integer</li>
+                </ul>
+
+                <h3>Overall Score Calculation</h3>
+                <ul>
+                    <li>Calculate all 6 dimension scores (0-100)</li>
+                    <li>Average the 6 dimension scores</li>
+                    <li>Round to nearest integer</li>
+                    <li>Apply interpretation band</li>
+                </ul>
+            </div>
+
+            <div class="admin-section">
+                <h2>💡 Coaching Implications by Dimension</h2>
+                
+                <h3>Openness</h3>
+                <div class="coaching-box">
+                    <strong>High Openness (70+):</strong> Explorer, experimentalist—consider adding structure and validation gates
+                </div>
+                <div class="coaching-box">
+                    <strong>Low Openness (<40):</strong> Executor, validator—consider more rapid prototyping and market testing
+                </div>
+
+                <h3>Conscientiousness</h3>
+                <div class="coaching-box">
+                    <strong>High Conscientiousness (70+):</strong> Detail-oriented—leverage for operational excellence and documentation
+                </div>
+                <div class="coaching-box">
+                    <strong>Low Conscientiousness (<40):</strong> Visionary—pair with detail-oriented COO or operations lead
+                </div>
+
+                <h3>Energy & Drive</h3>
+                <div class="coaching-box">
+                    <strong>High Energy & Drive (70+):</strong> Unstoppable force—channel toward long-term vision; manage burnout
+                </div>
+                <div class="coaching-box">
+                    <strong>Low Energy & Drive (<40):</strong> Measured approach—focus on sustainable scaling and team leverage
+                </div>
+
+                <h3>Conviction</h3>
+                <div class="coaching-box">
+                    <strong>High Conviction (70+):</strong> Visionary leader—validate thesis regularly to avoid sunk-cost bias
+                </div>
+                <div class="coaching-box">
+                    <strong>Low Conviction (<40):</strong> Adaptable—ensure strategic clarity and long-term direction commitment
+                </div>
+
+                <h3>Emotional Stability</h3>
+                <div class="coaching-box">
+                    <strong>High Emotional Stability (70+):</strong> Unflappable—your calm is an asset; ensure team feels heard under pressure
+                </div>
+                <div class="coaching-box">
+                    <strong>Low Emotional Stability (<40):</strong> Feeler—leverage this sensitivity for team dynamics; manage decision anxiety
+                </div>
+
+                <h3>Skepticism & Adaptability</h3>
+                <div class="coaching-box">
+                    <strong>High Skepticism & Adaptability (70+):</strong> Independent thinker—balance with team alignment and consistency
+                </div>
+                <div class="coaching-box">
+                    <strong>Low Skepticism & Adaptability (<40):</strong> Loyal executor—ensure you're not accepting flawed advice; test assumptions
+                </div>
+            </div>
+
+            <div class="admin-section">
+                <h2>📌 Key Notes for Administrators</h2>
+                <ul>
+                    <li><strong>No wrong answers</strong> - The survey measures personality tendencies, not competence</li>
+                    <li><strong>Dimension independence</strong> - Each dimension is independent; high scores in one don't require high scores in others</li>
+                    <li><strong>Interpretation context</strong> - Score bands are relative; consider individual dimension profiles for nuanced coaching</li>
+                    <li><strong>Response validation</strong> - All questions require an answer before proceeding</li>
+                    <li><strong>Dimension profiles matter as much as overall score</strong> - a founder with low Openness but high Conviction may be validating an existing thesis effectively</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="container" id="survey-container">
+        <div class="header">
+            <h1>FounderFit Score™ v2.1</h1>
+            <p>Founder Personality Assessment</p>
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+            <div class="progress-text"><span class="current-question">0</span> of <span class="total-questions">22</span></div>
+        </div>
+
+        <div class="content">
+            <div id="questions-container"></div>
+            
+            <div class="results-container" id="results-section">
+                <h2>Your FounderFit Score</h2>
+                <div class="score-display" id="final-score">0</div>
+                <div class="score-interpretation" id="score-text"></div>
+                
+                <h3 style="margin-top: 30px; color: var(--color-primary);">Dimension Breakdown</h3>
+                <div class="dimension-scores" id="dimension-results"></div>
+                
+                <button class="btn-reset" onclick="resetSurvey()">Start Over</button>
+            </div>
+
+            <div class="button-group" id="button-group">
+                <button class="btn-prev" id="btn-prev" onclick="previousQuestion()" disabled>← Previous</button>
+                <button class="btn-next" id="btn-next" onclick="nextQuestion()" disabled>Next →</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const questions = [
+            {
+                id: 'A1',
+                dimension: 'Openness',
+                text: 'You discover a novel market opportunity that excites you, but it conflicts with your current strategic direction. What do you do?',
+                type: 'binary',
+                options: [
+                    { text: 'I evaluate strategic fit first, but remain open if the opportunity is compelling.', value: 0 },
+                    { text: 'I immediately explore it, even if it conflicts with current strategy.', value: 1 }
+                ]
+            },
+            {
+                id: 'A2',
+                dimension: 'Openness',
+                text: 'How do you approach product development and improvements?',
+                type: 'binary',
+                options: [
+                    { text: 'I follow data-driven processes to ensure improvements are sustainable and measurable.', value: 0 },
+                    { text: 'I balance experimentation with user insights to drive unexpected innovations.', value: 1 }
+                ]
+            },
+            {
+                id: 'A3',
+                dimension: 'Openness',
+                text: 'When you encounter established industry conventions, what\'s your instinct?',
+                type: 'binary',
+                options: [
+                    { text: 'I respect established practices and propose changes thoughtfully when evidence supports them.', value: 0 },
+                    { text: 'I frequently challenge assumptions and explore alternative approaches when I see potential.', value: 1 }
+                ]
+            },
+            {
+                id: 'A4',
+                dimension: 'Openness',
+                text: 'When learning a new technology or tool, how do you approach it?',
+                type: 'binary',
+                options: [
+                    { text: 'I build foundational understanding before diving into implementation.', value: 0 },
+                    { text: 'I dive in hands-on and learn through exploration and iteration.', value: 1 }
+                ]
+            },
+            {
+                id: 'A5',
+                dimension: 'Openness',
+                text: 'When facing decisions with incomplete information, how comfortable are you moving forward?',
+                type: 'likert',
+                options: [
+                    { text: 'Prefer to gather additional information before deciding', value: 1 },
+                    { text: 'Mostly cautious but willing to move forward', value: 2 },
+                    { text: 'Neutral', value: 3 },
+                    { text: 'Generally comfortable with incomplete info', value: 4 },
+                    { text: 'Move forward confidently with the information available', value: 5 }
+                ]
+            },
+            {
+                id: 'BCONS1',
+                dimension: 'Conscientiousness',
+                text: 'When managing complex projects with many dependencies, what\'s your approach?',
+                type: 'binary',
+                options: [
+                    { text: 'I focus on vision and outcomes; I trust my team with execution oversight.', value: 0 },
+                    { text: 'I create detailed timelines and track dependencies to ensure alignment.', value: 1 }
+                ]
+            },
+            {
+                id: 'BCONS2',
+                dimension: 'Conscientiousness',
+                text: 'As your company scales, how do you handle operational tasks and documentation?',
+                type: 'binary',
+                options: [
+                    { text: 'I delegate operational details to specialists so I can focus on strategy.', value: 0 },
+                    { text: 'I personally maintain critical processes and documentation as the company scales.', value: 1 }
+                ]
+            },
+            {
+                id: 'BCONS3',
+                dimension: 'Conscientiousness',
+                text: 'When you\'ve committed to a project, how do you typically handle it if a more exciting opportunity emerges?',
+                type: 'likert',
+                options: [
+                    { text: 'Abandon it to pursue the new opportunity', value: 1 },
+                    { text: 'Quickly pivot if the opportunity is compelling', value: 2 },
+                    { text: 'Neutral', value: 3 },
+                    { text: 'Stay committed but reassess strategically', value: 4 },
+                    { text: 'See it through to completion regardless', value: 5 }
+                ]
+            },
+            {
+                id: 'C1',
+                dimension: 'Energy & Drive',
+                text: 'When you experience a major setback, how do you respond?',
+                type: 'binary',
+                options: [
+                    { text: 'I take time to process the setback and rebuild my strategic plan.', value: 0 },
+                    { text: 'I quickly assess what went wrong and pivot to the next approach.', value: 1 }
+                ]
+            },
+            {
+                id: 'C2',
+                dimension: 'Energy & Drive',
+                text: 'How do you approach ambitious growth targets?',
+                type: 'binary',
+                options: [
+                    { text: 'I base my targets on objective reality—I\'m confident in achieving them; missing them indicates flawed planning.', value: 0 },
+                    { text: 'I set audacious, almost irrational goals that excite me; the pursuit matters more than the outcome.', value: 1 }
+                ]
+            },
+            {
+                id: 'C3',
+                dimension: 'Energy & Drive',
+                text: 'How do you prefer to interact with and lead your team?',
+                type: 'binary',
+                options: [
+                    { text: 'I prefer deep one-on-one conversations where I can really understand each person.', value: 0 },
+                    { text: 'I lead by rallying the team around compelling vision and direction.', value: 1 }
+                ]
+            },
+            {
+                id: 'C4',
+                dimension: 'Energy & Drive',
+                text: 'When you set a multi-year strategic goal, how do you stay the course?',
+                type: 'likert',
+                options: [
+                    { text: 'I abandon it the moment a distraction appears', value: 1 },
+                    { text: 'I pivot constantly based on new information', value: 2 },
+                    { text: 'I stay committed but adjust tactically when needed', value: 3 },
+                    { text: 'I maintain unwavering focus with minimal deviation', value: 4 },
+                    { text: 'I obsess over the goal at the expense of everything else', value: 5 }
+                ]
+            },
+            {
+                id: 'DCONV1',
+                dimension: 'Conviction',
+                text: 'When team members or investors disagree with your direction, what do you do?',
+                type: 'binary',
+                options: [
+                    { text: 'I carefully consider their concerns and adjust my approach if they identify genuine risks.', value: 0 },
+                    { text: 'I make my case confidently and work toward alignment on my strategic direction.', value: 1 }
+                ]
+            },
+            {
+                id: 'DCONV2',
+                dimension: 'Conviction',
+                text: 'When your strategy is challenged or questioned, how do you typically respond?',
+                type: 'binary',
+                options: [
+                    { text: 'I\'m open to learning from their perspective and pivot if the evidence warrants it.', value: 0 },
+                    { text: 'I view it as an opportunity to defend my thesis and strengthen the strategy.', value: 1 }
+                ]
+            },
+            {
+                id: 'DCONV3',
+                dimension: 'Conviction',
+                text: 'How do you establish your strategic direction?',
+                type: 'likert',
+                options: [
+                    { text: 'By responding to market signals tactically', value: 1 },
+                    { text: 'Mostly reactive with some forward planning', value: 2 },
+                    { text: 'Neutral', value: 3 },
+                    { text: 'Mostly vision-driven with tactical flexibility', value: 4 },
+                    { text: 'With a specific long-term vision in mind', value: 5 }
+                ]
+            },
+            {
+                id: 'E1',
+                dimension: 'Emotional Stability',
+                text: 'When facing multiple simultaneous crises, how do you respond?',
+                type: 'binary',
+                options: [
+                    { text: 'I consider and weigh the competing demands and manage stress through deliberate pauses.', value: 0 },
+                    { text: 'I prioritize ruthlessly and maintain focus on what matters most.', value: 1 }
+                ]
+            },
+            {
+                id: 'E2',
+                dimension: 'Emotional Stability',
+                text: 'When self-doubt might affect your decisions, what\'s your instinct?',
+                type: 'binary',
+                options: [
+                    { text: 'I frequently pause to validate my thinking or get external perspective.', value: 0 },
+                    { text: 'I move forward confidently even with incomplete information.', value: 1 }
+                ]
+            },
+            {
+                id: 'E3',
+                dimension: 'Emotional Stability',
+                text: 'How do you show up under pressure and high stakes?',
+                type: 'likert',
+                options: [
+                    { text: 'Visibly stressed and reactive to events', value: 1 },
+                    { text: 'Noticeably affected but still functioning', value: 2 },
+                    { text: 'Balanced response to circumstances', value: 3 },
+                    { text: 'Mostly composed with focused intensity', value: 4 },
+                    { text: 'Calm and deliberate regardless of circumstances', value: 5 }
+                ]
+            },
+            {
+                id: 'F1',
+                dimension: 'Skepticism & Adaptability',
+                text: 'When an experienced advisor suggests a different approach, what do you do?',
+                type: 'binary',
+                options: [
+                    { text: 'I give significant weight to their proven track record.', value: 0 },
+                    { text: 'I test the idea independently while valuing their perspective.', value: 1 }
+                ]
+            },
+            {
+                id: 'F2',
+                dimension: 'Skepticism & Adaptability',
+                text: 'When your view differs from group consensus, how do you typically respond?',
+                type: 'binary',
+                options: [
+                    { text: 'I listen carefully and am willing to shift to align with the group.', value: 0 },
+                    { text: 'I articulate my position clearly and support it with reasoning.', value: 1 }
+                ]
+            },
+            {
+                id: 'F3',
+                dimension: 'Skepticism & Adaptability',
+                text: 'How do you view established industry approaches and best practices?',
+                type: 'likert',
+                options: [
+                    { text: 'Proven methods worth following as written', value: 1 },
+                    { text: 'Mostly sound with minor modifications', value: 2 },
+                    { text: 'Neutral; context dependent', value: 3 },
+                    { text: 'Good foundations but need significant adaptation', value: 4 },
+                    { text: 'Launching points for reinvention', value: 5 }
+                ]
+            },
+            {
+                id: 'F4',
+                dimension: 'Skepticism & Adaptability',
+                text: 'When data shows your strategy needs to shift, how do you respond?',
+                type: 'binary',
+                options: [
+                    { text: 'I analyze thoroughly before making any changes.', value: 0 },
+                    { text: 'I adjust direction promptly, even if it requires changing course.', value: 1 }
+                ]
+            }
+        ];
+
+        let currentQuestion = 0;
+        let responses = {};
+
+        function openAdminLogin() {
+            document.getElementById('admin-login-modal').classList.add('active');
+            document.getElementById('admin-password').focus();
+            document.getElementById('admin-error').style.display = 'none';
+        }
+
+        function closeAdminLogin() {
+            document.getElementById('admin-login-modal').classList.remove('active');
+            document.getElementById('admin-password').value = '';
+            document.getElementById('admin-error').style.display = 'none';
+        }
+
+        function checkAdminPassword() {
+            const password = document.getElementById('admin-password').value;
+            if (password === '1234') {
+                closeAdminLogin();
+                openAdminPanel();
+            } else {
+                document.getElementById('admin-error').textContent = 'Incorrect password. Try again.';
+                document.getElementById('admin-error').style.display = 'block';
+                document.getElementById('admin-password').value = '';
+                document.getElementById('admin-password').focus();
+            }
+        }
+
+        function openAdminPanel() {
+            document.getElementById('admin-panel').classList.add('active');
+            document.getElementById('survey-container').style.display = 'none';
+        }
+
+        function closeAdminPanel() {
+            document.getElementById('admin-panel').classList.remove('active');
+            document.getElementById('survey-container').style.display = 'block';
+        }
+
+        function initSurvey() {
+            const container = document.getElementById('questions-container');
+            questions.forEach((q, idx) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'question-container';
+                questionDiv.id = `question-${idx}`;
+
+                const questionNumber = document.createElement('div');
+                questionNumber.className = 'question-number';
+                questionNumber.textContent = `Question ${idx + 1}`;
+
+                const questionText = document.createElement('div');
+                questionText.className = 'question-text';
+                questionText.textContent = q.text;
+
+                const questionType = document.createElement('div');
+                questionType.className = 'question-type';
+                questionType.textContent = q.type === 'likert' ? 'Likert Scale (1-5)' : 'Choose one';
+
+                questionDiv.appendChild(questionNumber);
+                questionDiv.appendChild(questionText);
+                questionDiv.appendChild(questionType);
+
+                if (q.type === 'binary') {
+                    q.options.forEach(opt => {
+                        const label = document.createElement('label');
+                        label.className = 'option';
+                        const input = document.createElement('input');
+                        input.type = 'radio';
+                        input.name = `q-${idx}`;
+                        input.value = opt.value;
+                        input.onchange = () => {
+                            responses[q.id] = { dimension: q.dimension, value: parseInt(opt.value) };
+                            document.querySelectorAll(`#question-${idx} .option`).forEach(o => o.classList.remove('selected'));
+                            label.classList.add('selected');
+                        };
+                        label.appendChild(input);
+                        const textSpan = document.createElement('span');
+                        textSpan.className = 'option-text';
+                        textSpan.textContent = opt.text;
+                        label.appendChild(textSpan);
+                        questionDiv.appendChild(label);
+                    });
+                } else {
+                    const likertDiv = document.createElement('div');
+                    likertDiv.className = 'likert-scale';
+                    q.options.forEach((opt, optIdx) => {
+                        const optionDiv = document.createElement('div');
+                        optionDiv.className = 'likert-option';
+                        const input = document.createElement('input');
+                        input.type = 'radio';
+                        input.name = `q-${idx}`;
+                        input.value = opt.value;
+                        input.id = `q${idx}-opt${optIdx}`;
+                        input.onchange = () => {
+                            responses[q.id] = { dimension: q.dimension, value: parseInt(opt.value) };
+                        };
+                        const label = document.createElement('label');
+                        label.className = 'likert-label';
+                        label.htmlFor = `q${idx}-opt${optIdx}`;
+                        label.textContent = opt.text;
+                        optionDiv.appendChild(input);
+                        optionDiv.appendChild(label);
+                        likertDiv.appendChild(optionDiv);
+                    });
+                    questionDiv.appendChild(likertDiv);
+
+                    const legend = document.createElement('div');
+                    legend.className = 'likert-legend';
+                    legend.innerHTML = '<div>Disagree</div><div></div><div>Neutral</div><div></div><div>Agree</div>';
+                    questionDiv.appendChild(legend);
+                }
+
+                container.appendChild(questionDiv);
+            });
+
+            document.querySelector('.total-questions').textContent = questions.length;
+            showQuestion(0);
+        }
+
+        function showQuestion(idx) {
+            document.querySelectorAll('.question-container').forEach(q => q.classList.remove('active'));
+            document.getElementById(`question-${idx}`).classList.add('active');
+            
+            const q = questions[idx];
+            if (responses[q.id]) {
+                const input = document.querySelector(`input[name="q-${idx}"][value="${responses[q.id].value}"]`);
+                if (input) input.checked = true;
+            }
+
+            currentQuestion = idx;
+            document.querySelector('.current-question').textContent = idx + 1;
+            document.getElementById('btn-prev').disabled = idx === 0;
+            document.getElementById('btn-next').disabled = !responses[q.id];
+
+            const progressPercent = ((idx + 1) / questions.length) * 100;
+            document.querySelector('.progress-fill').style.width = progressPercent + '%';
+
+            document.getElementById('button-group').style.display = idx === questions.length ? 'none' : 'flex';
+        }
+
+        function nextQuestion() {
+            if (currentQuestion < questions.length - 1) {
+                showQuestion(currentQuestion + 1);
+            } else {
+                calculateScore();
+            }
+        }
+
+        function previousQuestion() {
+            if (currentQuestion > 0) {
+                showQuestion(currentQuestion - 1);
+            }
+        }
+
+        function calculateScore() {
+            const dimensions = {};
+            Object.entries(responses).forEach(([qId, data]) => {
+                if (!dimensions[data.dimension]) {
+                    dimensions[data.dimension] = [];
+                }
+                dimensions[data.dimension].push(data.value);
+            });
+
+            const dimensionScores = {};
+            Object.entries(dimensions).forEach(([dim, values]) => {
+                const avg = values.reduce((a, b) => a + b, 0) / values.length;
+                dimensionScores[dim] = Math.round((avg / 5) * 100);
+            });
+
+            const overallScore = Math.round(
+                Object.values(dimensionScores).reduce((a, b) => a + b, 0) / Object.keys(dimensionScores).length
+            );
+
+            displayResults(overallScore, dimensionScores);
+        }
+
+        function displayResults(score, dimensionScores) {
+            document.querySelectorAll('.question-container').forEach(q => q.classList.remove('active'));
+            document.getElementById('results-section').classList.add('active');
+            document.getElementById('button-group').style.display = 'none';
+
+            document.getElementById('final-score').textContent = score;
+
+            let interpretation = '';
+            if (score >= 80) {
+                interpretation = 'Founder personality strongly aligned with success indicators. Your profile suggests high potential for building and scaling ventures.';
+            } else if (score >= 65) {
+                interpretation = 'Above-average alignment with founder success profile. You demonstrate strong entrepreneurial characteristics with room for development.';
+            } else if (score >= 50) {
+                interpretation = 'Average alignment with founder success profile. You have solid foundational traits with opportunities to strengthen key areas.';
+            } else {
+                interpretation = 'Below-average alignment with founder success profile. Consider how you might develop key entrepreneurial characteristics.';
+            }
+
+            document.getElementById('score-text').textContent = interpretation;
+
+            const dimensionResults = document.getElementById('dimension-results');
+            dimensionResults.innerHTML = '';
+            Object.entries(dimensionScores).forEach(([dim, score]) => {
+                const div = document.createElement('div');
+                div.className = 'dimension-item';
+                div.innerHTML = `<div class="dimension-name">${dim}</div><div class="dimension-value">${score}</div>`;
+                dimensionResults.appendChild(div);
+            });
+        }
+
+        function resetSurvey() {
+            currentQuestion = 0;
+            responses = {};
+            document.getElementById('results-section').classList.remove('active');
+            document.getElementById('button-group').style.display = 'flex';
+            document.querySelectorAll('input[type="radio"]').forEach(i => i.checked = false);
+            document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+            showQuestion(0);
+        }
+
+        document.addEventListener('change', () => {
+            const q = questions[currentQuestion];
+            document.getElementById('btn-next').disabled = !responses[q.id];
+        });
+
+        initSurvey();
+    </script>
+</body>
+</html>
