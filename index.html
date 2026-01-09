@@ -545,6 +545,74 @@
             cursor: not-allowed;
         }
 
+        .email-collection-container {
+            display: none;
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .email-collection-container.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .email-form {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--color-text);
+            font-size: 14px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid var(--color-border);
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+        }
+
+        .btn-submit-email {
+            width: 100%;
+            padding: 14px 24px;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn-submit-email:hover {
+            background: var(--color-primary-dark);
+        }
+
+        .privacy-note {
+            font-size: 12px;
+            color: var(--color-text-light);
+            margin-top: 12px;
+            font-style: italic;
+        }
+
         .results-container {
             display: none;
             text-align: center;
@@ -1063,6 +1131,26 @@
         <div class="content">
             <div id="questions-container"></div>
             
+            <div class="email-collection-container" id="email-section">
+                <h2>Get Your Results</h2>
+                <p style="color: var(--color-text-light); margin-bottom: 30px;">Enter your information to receive your detailed FounderFit Score™ analysis via email.</p>
+                
+                <div class="email-form">
+                    <div class="form-group">
+                        <label for="user-name">Full Name</label>
+                        <input type="text" id="user-name" placeholder="John Doe" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="user-email">Email Address</label>
+                        <input type="email" id="user-email" placeholder="john@example.com" required>
+                    </div>
+                    
+                    <button class="btn-submit-email" onclick="submitEmailAndShowResults()">View My Results</button>
+                    <p class="privacy-note">We'll only use your email to send your results. No spam, ever.</p>
+                </div>
+            </div>
+
             <div class="results-container" id="results-section">
                 <h2>Your FounderFit Score</h2>
                 <div class="score-display" id="final-score">0</div>
@@ -1482,6 +1570,10 @@
             }
         }
 
+        // Store calculated scores globally
+        let calculatedOverallScore = 0;
+        let calculatedDimensionScores = {};
+
         function calculateScore() {
             const dimensions = {};
             Object.entries(responses).forEach(([qId, data]) => {
@@ -1510,11 +1602,43 @@
                 Object.values(dimensionScores).reduce((a, b) => a + b, 0) / Object.keys(dimensionScores).length
             );
 
-            displayResults(overallScore, dimensionScores);
+            // Store scores globally
+            calculatedOverallScore = overallScore;
+            calculatedDimensionScores = dimensionScores;
+
+            // Show email collection form instead of results
+            showEmailForm();
         }
 
-        function displayResults(score, dimensionScores) {
+        function showEmailForm() {
             document.querySelectorAll('.question-container').forEach(q => q.classList.remove('active'));
+            document.getElementById('email-section').classList.add('active');
+            document.getElementById('button-group').style.display = 'none';
+        }
+
+        function submitEmailAndShowResults() {
+            const name = document.getElementById('user-name').value.trim();
+            const email = document.getElementById('user-email').value.trim();
+
+            if (!name || !email) {
+                alert('Please enter both your name and email address.');
+                return;
+            }
+
+            // Validate email format
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                alert('Please enter a valid email address.');
+                return;
+            }
+
+            // Store user info and display results
+            displayResults(calculatedOverallScore, calculatedDimensionScores, name, email);
+        }
+
+        function displayResults(score, dimensionScores, name, email) {
+            document.querySelectorAll('.question-container').forEach(q => q.classList.remove('active'));
+            document.getElementById('email-section').classList.remove('active');
             document.getElementById('results-section').classList.add('active');
             document.getElementById('button-group').style.display = 'none';
 
@@ -1542,8 +1666,8 @@
                 dimensionResults.appendChild(div);
             });
 
-            // Save report to Supabase
-            saveReportToSupabase(score, dimensionScores);
+            // Save report to Supabase with user info and send email
+            saveReportToSupabase(score, dimensionScores, name, email);
         }
 
         function resetSurvey() {
@@ -1779,7 +1903,7 @@
         }
 
         // Supabase Functions
-        async function saveReportToSupabase(overallScore, dimensionScores) {
+        async function saveReportToSupabase(overallScore, dimensionScores, name, email) {
             try {
                 const { data, error } = await supabaseClient
                     .from('test_reports')
@@ -1787,7 +1911,9 @@
                         {
                             overall_score: overallScore,
                             dimension_scores: dimensionScores,
-                            responses: responses
+                            responses: responses,
+                            user_name: name,
+                            user_email: email
                         }
                     ]);
                 
@@ -1795,9 +1921,39 @@
                     console.error('Error saving report:', error);
                 } else {
                     console.log('Report saved successfully');
+                    // Send email with results
+                    sendResultsEmail(overallScore, dimensionScores, name, email);
                 }
             } catch (err) {
                 console.error('Error:', err);
+            }
+        }
+
+        async function sendResultsEmail(overallScore, dimensionScores, name, email) {
+            try {
+                // Call serverless function to send email
+                const response = await fetch('/api/send-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        email: email,
+                        overallScore: overallScore,
+                        dimensionScores: dimensionScores
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    console.log('Email sent successfully to', email);
+                } else {
+                    console.error('Failed to send email:', data);
+                }
+            } catch (err) {
+                console.error('Error sending email:', err);
             }
         }
 
