@@ -1174,6 +1174,7 @@
         const SUPABASE_URL = 'https://lcdcwtisiojbtsysjeic.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxjZGN3dGlzaW9qYnRzeXNqZWljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY0Mzg5NzAsImV4cCI6MjA1MjAxNDk3MH0.Onk69BuaVBHN9F9wV__W-g_DOa9klgM';
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        window.supabaseClient = supabaseClient; // Make it globally accessible
 
         const questions = [
             {
