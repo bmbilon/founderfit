@@ -70,3 +70,4 @@ Click the **🔐 Admin** button in the top-right corner and enter password `1234
 ## License
 
 © 2026 FounderFit Score™. All rights reserved.
+
