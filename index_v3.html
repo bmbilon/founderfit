@@ -1131,59 +1131,7 @@
         <div class="content">
             <div id="questions-container"></div>
             
-            <div class="context-collection-container" id="context-collection" style="display:none;">
-                <h2>Almost Done!</h2>
-                <p style="color: var(--color-text-light); margin-bottom: 30px;">Help us provide more accurate insights by answering these quick context questions.</p>
-                
-                <div class="context-form">
-                    <div class="form-group">
-                        <label><strong>Age Range *</strong></label>
-                        <div class="radio-group">
-                            <label><input type="radio" name="age" value="under-25"> Under 25</label>
-                            <label><input type="radio" name="age" value="25-34"> 25-34</label>
-                            <label><input type="radio" name="age" value="35-44"> 35-44</label>
-                            <label><input type="radio" name="age" value="45-54"> 45-54</label>
-                            <label><input type="radio" name="age" value="55-64"> 55-64</label>
-                            <label><input type="radio" name="age" value="65+"> 65+</label>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label><strong>Domain Experience *</strong></label>
-                        <div class="radio-group">
-                            <label><input type="radio" name="domain_exp" value="lt-1"> < 1 year</label>
-                            <label><input type="radio" name="domain_exp" value="1-3"> 1-3 years</label>
-                            <label><input type="radio" name="domain_exp" value="3-7"> 3-7 years</label>
-                            <label><input type="radio" name="domain_exp" value="7+"> 7+ years</label>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Venture Stage (optional)</label>
-                        <div class="radio-group">
-                            <label><input type="radio" name="stage" value="pre-launch"> Pre-launch</label>
-                            <label><input type="radio" name="stage" value="mvp"> MVP / early traction</label>
-                            <label><input type="radio" name="stage" value="pmf-search"> PMF search</label>
-                            <label><input type="radio" name="stage" value="scaling"> Scaling</label>
-                            <label><input type="radio" name="stage" value="mature"> Mature</label>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Industry (optional)</label>
-                        <div class="radio-group">
-                            <label><input type="radio" name="industry" value="saas"> SaaS / software</label>
-                            <label><input type="radio" name="industry" value="consumer-ecom"> Consumer / ecommerce</label>
-                            <label><input type="radio" name="industry" value="services"> B2B services</label>
-                            <label><input type="radio" name="industry" value="hardware-regulated"> Hardware / biotech / regulated</label>
-                        </div>
-                    </div>
-                    
-                    <button class="btn-submit-context" onclick="submitContext()">Continue to Results</button>
-                </div>
-            </div>
-
-            <div class="email-collection-container" id="email-section" style="display:none;">
+            <div class="email-collection-container" id="email-section">
                 <h2>Get Your Results</h2>
                 <p style="color: var(--color-text-light); margin-bottom: 30px;">Enter your information to receive your detailed FounderFit Score™ analysis via email.</p>
                 
@@ -1211,9 +1159,6 @@
                 <h3 style="margin-top: 30px; color: var(--color-primary);">Dimension Breakdown</h3>
                 <div class="dimension-scores" id="dimension-results"></div>
                 
-                <div id="validity-display"></div>
-                <div id="success-display"></div>
-                
                 <button class="btn-reset" onclick="resetSurvey()">Start Over</button>
             </div>
 
@@ -1229,16 +1174,9 @@
         const SUPABASE_URL = 'https://lcdcwtisiojbtsysjeic.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxjZGN3dGlzaW9qYnRzeXNqZWljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5ODgwNTQsImV4cCI6MjA4MzU2NDA1NH0.j0BQsd9kdsiNrwFr-sqg-OelUiGcdXa5Y7cc6qspFMg';
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        window.supabaseClient = supabaseClient;
+        window.supabaseClient = supabaseClient; // Make it globally accessible
 
-/* FOUNDERFIT V5 INSTRUMENT
-   30-question instrument (22 core + 8 validity)
-   - option-order shuffling (kills "2nd option always better" + far-right bias)
-   - reverse-scoring + nonlinear scoring
-   - trait scoring + validity scoring + success index using context priors
-*/
-
-
+<script>
 /* =========================
    0) UTILITIES
 ========================= */
@@ -1650,6 +1588,8 @@ function buildQuestionsForSession() {
    If you don't, you can still use the scoring functions below.
 ========================= */
 
+const questions = buildQuestionsForSession();
+
 // Expected response structure:
 // responses[q.id] = { dimension, type, value, meta?: {...} }
 // For binary: value is option.key ("A"/"B") OR store traitDir directly.
@@ -1714,119 +1654,103 @@ function itemScore01(q, resp, context) {
 
 function scoreValidity(responsesMap, msTotal = null) {
   let validity = 100;
-  const flags = new Set();
+  const flags = [];
+  let tooPerfectPoints = 0;
 
-  // --- Helpers
-  const getInt = (id) => {
-    const r = responsesMap[id];
-    if (!r) return null;
-    const n = parseInt(r.value, 10);
-    return Number.isFinite(n) ? n : null;
-  };
+  // Attention checks
+  for (const q of questions) {
+    if (!q.validityOnly) continue;
+    const r = responsesMap[q.id];
+    if (!r) continue;
 
-  // Convert a likert item to a "comfort-with-uncertainty" axis score (0..100)
-  // - V3: comfort statement (higher = more comfort) -> normal
-  // - A5: discomfort statement (higher = more discomfort) -> reverse to comfort
-  const comfortScore100 = (id) => {
-    const v = getInt(id);
-    if (v == null) return null;
-    if (id === "A5") {
-      // A5 text: "uncomfortable..." => high raw means low comfort
-      const reversed = 6 - v; // 1..5 -> 5..1
-      return Math.round(((reversed - 1) / 4) * 100);
-    }
-    // default: higher raw = higher comfort
-    return Math.round(((v - 1) / 4) * 100);
-  };
-
-  // --- A) Attention checks (must be correct)
-  // V1 requires Agree (4)
-  {
-    const v1 = getInt("V1");
-    if (v1 != null && v1 !== 4) {
-      flags.add("attention_fail_V1");
-      validity -= 40;
-    }
-    const v7 = getInt("V7");
-    if (v7 != null && v7 !== 2) {
-      flags.add("attention_fail_V7");
-      validity -= 40;
+    if (q.attention && q.attention.requiredValue) {
+      if (parseInt(r.value, 10) !== q.attention.requiredValue) {
+        flags.push(`attention_fail_${q.id}`);
+        // hard-ish fail
+        validity -= 40;
+      }
     }
   }
 
-  // --- Integrity + infrequency
+  // Integrity + infrequency
   {
-    const v6 = getInt("V6");
-    if (v6 != null && v6 < 3) {
-      flags.add("integrity_low");
+    const v6 = responsesMap["V6"];
+    if (v6 && parseInt(v6.value, 10) < 3) {
+      flags.push("integrity_low");
       validity -= 40;
     }
-
-    const v8 = getInt("V8");
-    if (v8 != null && v8 >= 4) {
-      flags.add("random_clicking_admitted");
+    const v8 = responsesMap["V8"];
+    if (v8 && parseInt(v8.value, 10) >= 4) {
+      flags.push("random_clicking_admitted");
       validity -= 35;
     }
   }
 
-  // --- B) "Too perfect"
-  // V2 = Strongly Agree (5) triggers
-  // V5 = Agree or Strongly Agree (>=4) triggers
+  // Too-perfect
   {
-    const v2 = getInt("V2");
-    const v5 = getInt("V5");
-    let hits = 0;
+    const v2 = responsesMap["V2"];
+    if (v2 && parseInt(v2.value, 10) === 5) tooPerfectPoints += 1;
 
-    if (v2 === 5) hits += 1;
-    if (v5 != null && v5 >= 4) hits += 1;
+    const v5 = responsesMap["V5"];
+    if (v5 && parseInt(v5.value, 10) >= 4) tooPerfectPoints += 1;
 
-    if (hits > 0) flags.add("too_perfect_signal");
-    validity -= Math.min(30, hits * 12);
+    if (tooPerfectPoints >= 1) flags.push("too_perfect_signal");
+    validity -= Math.min(30, tooPerfectPoints * 12);
   }
 
-  // --- C) Consistency: A5 vs V3
-  // If they're far apart on the same axis, flag it.
+  // Consistency checks (convert paired items to 0..100 and compare)
+  function likertAsScore100(qid) {
+    const q = questions.find(x => x.id === qid);
+    const r = responsesMap[qid];
+    if (!q || !r) return null;
+
+    let v = clamp(parseInt(r.value, 10), 1, 5);
+    if (q.reverse) v = reverseLikert(v);
+    if (q.nonlinearMap) {
+      const map = { 1: 20, 2: 50, 3: 80, 4: 100, 5: 70 };
+      return map[v] ?? 50;
+    }
+    return normalizeLikert01To100(likertTo01(v));
+  }
+
+  // V3 vs A5 (inverse)
   {
-    const v3c = comfortScore100("V3");
-    const a5c = comfortScore100("A5");
-    if (v3c != null && a5c != null) {
-      const diff = Math.abs(v3c - a5c);
+    const v3 = likertAsScore100("V3");
+    const a5 = likertAsScore100("A5"); // A5 is reverse-scored in scoring, so higher means more comfortable
+    if (v3 != null && a5 != null) {
+      const diff = Math.abs(v3 - a5);
       if (diff > 50) {
-        flags.add("inconsistency_openness");
+        flags.push("inconsistency_openness");
         validity -= 15;
       }
     }
   }
 
-  // V4 vs BCONS3 consistency (both are "stick with commitments")
-  // Use raw-to-100 same direction.
+  // V4 vs BCONS3 (same)
   {
-    const v4 = getInt("V4");
-    const b3 = getInt("BCONS3");
+    const v4 = likertAsScore100("V4");
+    const b3 = likertAsScore100("BCONS3");
     if (v4 != null && b3 != null) {
-      const v4s = Math.round(((v4 - 1) / 4) * 100);
-      const b3s = Math.round(((b3 - 1) / 4) * 100);
-      if (Math.abs(v4s - b3s) > 50) {
-        flags.add("inconsistency_conscientiousness");
+      const diff = Math.abs(v4 - b3);
+      if (diff > 50) {
+        flags.push("inconsistency_conscientiousness");
         validity -= 15;
       }
     }
   }
 
-  // --- Speed check (optional)
-  if (typeof msTotal === "number" && msTotal < 150000) {
-    flags.add("speed_suspicious_fast");
-    validity -= 10;
+  // Optional: response-time anomaly (if you pass msTotal)
+  if (typeof msTotal === "number") {
+    // Very rough: under ~2.5 minutes for 30 items is suspicious for careful reading
+    if (msTotal < 150000) {
+      flags.push("speed_suspicious_fast");
+      validity -= 10;
+    }
   }
 
   validity = clamp(Math.round(validity), 0, 100);
-
-  const confidenceBand =
-    validity >= 80 ? "High" :
-    validity >= 60 ? "Moderate" :
-    "Low";
-
-  return { validity, confidenceBand, flags: Array.from(flags) };
+  const confidenceBand = validity >= 80 ? "High" : validity >= 60 ? "Moderate" : "Low";
+  return { validity, confidenceBand, flags };
 }
 
 /* =========================
@@ -2072,343 +1996,566 @@ E) Display:
 
 */
 
-        // ===== INTEGRATION LAYER =====
-        // Session-specific shuffled questions
-        const sessionQuestions = buildQuestionsForSession();
-        const questions = sessionQuestions; // Alias for compatibility
-        
-        // UI State
         let currentQuestion = 0;
-        const responses = {};
-        let startTime = Date.now();
-        let calculatedOverallScore = 0;
-        let calculatedDimensionScores = {};
-        let validityResult = null;
-        let successResult = null;
-        let contextData = null;
+        let responses = {};
 
-        // Initialize survey
+        function openAdminLogin() {
+            document.getElementById('admin-login-modal').classList.add('active');
+            document.getElementById('admin-password').focus();
+            document.getElementById('admin-error').style.display = 'none';
+        }
+
+        function closeAdminLogin() {
+            document.getElementById('admin-login-modal').classList.remove('active');
+            document.getElementById('admin-password').value = '';
+            document.getElementById('admin-error').style.display = 'none';
+        }
+
+        function checkAdminPassword() {
+            const password = document.getElementById('admin-password').value;
+            if (password === '1234') {
+                closeAdminLogin();
+                openAdminPanel();
+            } else {
+                document.getElementById('admin-error').textContent = 'Incorrect password. Try again.';
+                document.getElementById('admin-error').style.display = 'block';
+                document.getElementById('admin-password').value = '';
+                document.getElementById('admin-password').focus();
+            }
+        }
+
+        async function openAdminPanel() {
+            document.getElementById('admin-panel').classList.add('active');
+            document.getElementById('survey-container').style.display = 'none';
+            await displayReportsList();
+        }
+
+        function closeAdminPanel() {
+            document.getElementById('admin-panel').classList.remove('active');
+            document.getElementById('survey-container').style.display = 'block';
+        }
+
         function initSurvey() {
-            currentQuestion = 0;
-            Object.keys(responses).forEach(key => delete responses[key]);
-            startTime = Date.now();
-            window.__ffFinishedAt = null;
-            
-            // Ensure header reflects new length (30)
-            document.querySelector('.total-questions').textContent = String(questions.length);
-            
-            showQuizUI();
-            showQuestion();
-        }
-
-        // Show current question
-        function showQuestion() {
-            const q = questions[currentQuestion];
             const container = document.getElementById('questions-container');
-            const progress = document.querySelector('.progress-fill');
-            const currentQText = document.querySelector('.current-question');
-            const totalQText = document.querySelector('.total-questions');
-            
-            progress.style.width = ((currentQuestion / questions.length) * 100) + '%';
-            currentQText.textContent = currentQuestion + 1;
-            totalQText.textContent = questions.length;
-            
-            let html = `<h3>${q.text}</h3><div class="options">`;
-            
-            if (q.type === 'binary') {
-                q.options.forEach((opt, idx) => {
-                    const checked = responses[q.id]?.value === opt.key ? 'checked' : '';
-                    html += `
-                        <label class="option ${checked}">
-                            <input type="radio" name="q${currentQuestion}" value="${opt.key}" ${checked}
-                                   onchange="selectOption('${q.id}', '${opt.key}', ${opt.traitDir}, '${q.dimension}', 'binary')">
-                            <span>${opt.text}</span>
-                        </label>`;
-                });
-            } else if (q.type === 'likert') {
-                const labels = q.likertLabels || ['Strongly disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly agree'];
-                for (let i = 1; i <= 5; i++) {
-                    const checked = responses[q.id]?.value === i ? 'checked' : '';
-                    html += `
-                        <label class="option ${checked}">
-                            <input type="radio" name="q${currentQuestion}" value="${i}" ${checked}
-                                   onchange="selectOption('${q.id}', ${i}, null, '${q.dimension}', 'likert')">
-                            <span>${labels[i-1]}</span>
-                        </label>`;
+            questions.forEach((q, idx) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'question-container';
+                questionDiv.id = `question-${idx}`;
+
+                const questionNumber = document.createElement('div');
+                questionNumber.className = 'question-number';
+                questionNumber.textContent = `Question ${idx + 1}`;
+
+                const questionText = document.createElement('div');
+                questionText.className = 'question-text';
+                questionText.textContent = q.text;
+
+                const questionType = document.createElement('div');
+                questionType.className = 'question-type';
+                questionType.textContent = q.type === 'likert' ? 'Likert Scale (1-5)' : 'Choose one';
+
+                questionDiv.appendChild(questionNumber);
+                questionDiv.appendChild(questionText);
+                questionDiv.appendChild(questionType);
+
+                if (q.type === 'binary') {
+                    q.options.forEach(opt => {
+                        const label = document.createElement('label');
+                        label.className = 'option';
+                        const input = document.createElement('input');
+                        input.type = 'radio';
+                        input.name = `q-${idx}`;
+                        input.value = opt.value;
+                        input.onchange = () => {
+                            responses[q.id] = { dimension: q.dimension, value: parseInt(opt.value), type: q.type };
+                            document.querySelectorAll(`#question-${idx} .option`).forEach(o => o.classList.remove('selected'));
+                            label.classList.add('selected');
+                        };
+                        label.appendChild(input);
+                        const textSpan = document.createElement('span');
+                        textSpan.className = 'option-text';
+                        textSpan.textContent = opt.text;
+                        label.appendChild(textSpan);
+                        questionDiv.appendChild(label);
+                    });
+                } else {
+                    const likertDiv = document.createElement('div');
+                    likertDiv.className = 'likert-scale';
+                    q.options.forEach((opt, optIdx) => {
+                        const optionDiv = document.createElement('div');
+                        optionDiv.className = 'likert-option';
+                        const input = document.createElement('input');
+                        input.type = 'radio';
+                        input.name = `q-${idx}`;
+                        input.value = opt.value;
+                        input.id = `q${idx}-opt${optIdx}`;
+                        input.onchange = () => {
+                            responses[q.id] = { dimension: q.dimension, value: parseInt(opt.value), type: q.type };
+                        };
+                        const label = document.createElement('label');
+                        label.className = 'likert-label';
+                        label.htmlFor = `q${idx}-opt${optIdx}`;
+                        label.textContent = opt.text;
+                        optionDiv.appendChild(input);
+                        optionDiv.appendChild(label);
+                        likertDiv.appendChild(optionDiv);
+                    });
+                    questionDiv.appendChild(likertDiv);
+
+                    const legend = document.createElement('div');
+                    legend.className = 'likert-legend';
+                    legend.innerHTML = '<div>Disagree</div><div></div><div>Neutral</div><div></div><div>Agree</div>';
+                    questionDiv.appendChild(legend);
                 }
+
+                container.appendChild(questionDiv);
+            });
+
+            document.querySelector('.total-questions').textContent = questions.length;
+            showQuestion(0);
+        }
+
+        function showQuestion(idx) {
+            document.querySelectorAll('.question-container').forEach(q => q.classList.remove('active'));
+            document.getElementById(`question-${idx}`).classList.add('active');
+            
+            const q = questions[idx];
+            if (responses[q.id]) {
+                const input = document.querySelector(`input[name="q-${idx}"][value="${responses[q.id].value}"]`);
+                if (input) input.checked = true;
             }
-            
-            html += '</div>';
-            container.innerHTML = html;
-            
-            updateButtons();
+
+            currentQuestion = idx;
+            document.querySelector('.current-question').textContent = idx + 1;
+            document.getElementById('btn-prev').disabled = idx === 0;
+            document.getElementById('btn-next').disabled = !responses[q.id];
+
+            const progressPercent = ((idx + 1) / questions.length) * 100;
+            document.querySelector('.progress-fill').style.width = progressPercent + '%';
+
+            document.getElementById('button-group').style.display = idx === questions.length ? 'none' : 'flex';
         }
 
-        // Select option
-        function selectOption(qId, value, dimension, type) {
-            responses[qId] = { dimension, type, value };
-            document.getElementById('btn-next').disabled = false;
-        }
-
-        // UI State Helpers
-        function showQuizUI() {
-            document.getElementById('questions-container').style.display = 'block';
-            document.getElementById('button-group').style.display = 'flex';
-            document.getElementById('context-collection').style.display = 'none';
-            document.getElementById('email-section').style.display = 'none';
-            document.getElementById('results-section').style.display = 'none';
-        }
-
-        function showContextUI() {
-            document.getElementById('questions-container').style.display = 'none';
-            document.getElementById('button-group').style.display = 'none';
-            document.getElementById('context-collection').style.display = 'block';
-            document.getElementById('email-section').style.display = 'none';
-            document.getElementById('results-section').style.display = 'none';
-        }
-
-        function showEmailUI() {
-            document.getElementById('questions-container').style.display = 'none';
-            document.getElementById('button-group').style.display = 'none';
-            document.getElementById('context-collection').style.display = 'none';
-            document.getElementById('email-section').style.display = 'block';
-            document.getElementById('results-section').style.display = 'none';
-        }
-
-        function showResultsUI() {
-            document.getElementById('questions-container').style.display = 'none';
-            document.getElementById('button-group').style.display = 'none';
-            document.getElementById('context-collection').style.display = 'none';
-            document.getElementById('email-section').style.display = 'none';
-            document.getElementById('results-section').style.display = 'block';
-        }
-
-        // Navigation
         function nextQuestion() {
-            // Guard: must have an answer selected
-            const q = questions[currentQuestion];
-            if (!responses[q.id]) return;
-
             if (currentQuestion < questions.length - 1) {
-                currentQuestion++;
-                showQuestion();
-                return;
+                showQuestion(currentQuestion + 1);
+            } else {
+                calculateScore();
             }
-
-            // Finished the 30 items - mark completion time
-            if (!window.__ffFinishedAt) window.__ffFinishedAt = Date.now();
-            
-            // Update progress to 100%
-            const progress = document.querySelector('.progress-fill');
-            if (progress) progress.style.width = '100%';
-            
-            // Show context collection (age + domain required)
-            showContextUI();
         }
 
         function previousQuestion() {
             if (currentQuestion > 0) {
-                currentQuestion--;
-                showQuestion();
+                showQuestion(currentQuestion - 1);
             }
         }
 
-        function updateButtons() {
-            document.getElementById('btn-prev').disabled = currentQuestion === 0;
-            const currentResponse = responses[questions[currentQuestion].id];
-            document.getElementById('btn-next').disabled = !currentResponse;
-        }
+        // Store calculated scores globally
+        let calculatedOverallScore = 0;
+        let calculatedDimensionScores = {};
 
-        function resetSurvey() {
-            location.reload();
-        }
-
-        // Context collection
-        function submitContext() {
-            const ageBucket = document.querySelector('input[name="age"]:checked')?.value;
-            const domainExp = document.querySelector('input[name="domain_exp"]:checked')?.value;
-            const stage = document.querySelector('input[name="stage"]:checked')?.value || 'mvp';
-            const industry = document.querySelector('input[name="industry"]:checked')?.value || 'saas';
-            const founderExp = document.querySelector('input[name="founder_exp"]:checked')?.value || 'first-time';
-            const capital = document.querySelector('input[name="capital"]:checked')?.value || 'angel-seed';
-            
-            if (!ageBucket || !domainExp) {
-                alert('Please answer the required questions (age and domain experience)');
-                return;
-            }
-            
-            contextData = { ageBucket, domainExp, stage, industry, founderExp, capital };
-            
-            // Calculate scores (must compute validity + gated successIndex)
-            calculateScores();
-            
-            // Show email collection
-            showEmailUI();
-        }
-
-        // Calculate scores using new pipeline
-        function calculateScores() {
-            // Use completion time if available (for validity speed check)
-            const elapsedMs = window.__ffFinishedAt ? (window.__ffFinishedAt - startTime) : (Date.now() - startTime);
-            
-            // Convert responses to format expected by scoring functions
-            const responsesMap = {};
-            Object.keys(responses).forEach(qId => {
-                responsesMap[qId] = responses[qId];
+        function calculateScore() {
+            const dimensions = {};
+            Object.entries(responses).forEach(([qId, data]) => {
+                if (!dimensions[data.dimension]) {
+                    dimensions[data.dimension] = [];
+                }
+                // Normalize scores to 0-100 scale based on question type
+                let normalizedScore;
+                if (data.type === 'binary') {
+                    // Binary: 0-1 → multiply by 100
+                    normalizedScore = data.value * 100;
+                } else {
+                    // Likert: 1-5 → normalize to 0-100
+                    normalizedScore = ((data.value - 1) / 4) * 100;
+                }
+                dimensions[data.dimension].push(normalizedScore);
             });
-            
-            // Run scoring pipeline
-            const traits = scoreTraits(responsesMap);
-            const validity = scoreValidity(responsesMap, elapsedMs);
-            
-            calculatedOverallScore = traits.overallTraitScore;
-            calculatedDimensionScores = traits.dimScores;
-            validityResult = validity;
-            
-            // Calculate success index if validity >= 60
-            if (validity.validity >= 60) {
-                const success = scoreSuccessIndex(traits, validity, contextData);
-                successResult = success;
-            } else {
-                successResult = { successIndex: null, note: 'Success index suppressed due to low validity' };
-            }
+
+            const dimensionScores = {};
+            Object.entries(dimensions).forEach(([dim, values]) => {
+                const avg = values.reduce((a, b) => a + b, 0) / values.length;
+                dimensionScores[dim] = Math.round(avg);
+            });
+
+            const overallScore = Math.round(
+                Object.values(dimensionScores).reduce((a, b) => a + b, 0) / Object.keys(dimensionScores).length
+            );
+
+            // Store scores globally
+            calculatedOverallScore = overallScore;
+            calculatedDimensionScores = dimensionScores;
+
+            // Show email collection form instead of results
+            showEmailForm();
         }
 
-        // Email collection and results display
+        function showEmailForm() {
+            document.querySelectorAll('.question-container').forEach(q => q.classList.remove('active'));
+            document.getElementById('email-section').classList.add('active');
+            document.getElementById('button-group').style.display = 'none';
+        }
+
         function submitEmailAndShowResults() {
             const name = document.getElementById('user-name').value.trim();
             const email = document.getElementById('user-email').value.trim();
-            
+
             if (!name || !email) {
-                alert('Please enter your name and email');
+                alert('Please enter both your name and email address.');
                 return;
             }
-            
+
+            // Validate email format
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                alert('Please enter a valid email address.');
+                return;
+            }
+
+            // Store user info and display results
             displayResults(calculatedOverallScore, calculatedDimensionScores, name, email);
-            showResultsUI();
         }
 
-        // Display results
         function displayResults(score, dimensionScores, name, email) {
-            
-            // Overall score
+            document.querySelectorAll('.question-container').forEach(q => q.classList.remove('active'));
+            document.getElementById('email-section').classList.remove('active');
+            document.getElementById('results-section').classList.add('active');
+            document.getElementById('button-group').style.display = 'none';
+
             document.getElementById('final-score').textContent = score;
-            document.getElementById('score-text').textContent = getScoreInterpretation(score);
-            
-            // Dimension scores
-            const dimContainer = document.getElementById('dimension-results');
-            let dimHTML = '';
-            Object.entries(dimensionScores).forEach(([dim, val]) => {
-                dimHTML += `
-                    <div class="dimension-item">
-                        <div class="dimension-header">
-                            <span class="dimension-name">${dim}</span>
-                            <span class="dimension-score">${val}</span>
-                        </div>
-                        <div class="dimension-bar">
-                            <div class="dimension-fill" style="width: ${val}%"></div>
-                        </div>
-                    </div>`;
-            });
-            dimContainer.innerHTML = dimHTML;
-            
-            // Validity section
-            const validityHTML = `
-                <div class="validity-section">
-                    <h3>Response Validity</h3>
-                    <div class="validity-score">
-                        <span>Validity Score: ${validityResult.validity}/100</span>
-                        <span class="confidence-badge">${validityResult.confidenceBand} Confidence</span>
-                    </div>
-                    ${validityResult.flags.length > 0 ? `
-                        <div class="validity-flags">
-                            <strong>Flags:</strong> ${validityResult.flags.join(', ')}
-                        </div>
-                    ` : ''}
-                </div>`;
-            document.getElementById('validity-display').innerHTML = validityHTML;
-            
-            // Success index
-            let successHTML = '';
-            if (successResult.successIndex !== null) {
-                successHTML = `
-                    <div class="success-section">
-                        <h3>Success Likelihood Index</h3>
-                        <div class="success-score">${successResult.successIndex}/100</div>
-                        <p>Based on your traits, validity, and context</p>
-                    </div>`;
+
+            let interpretation = '';
+            if (score >= 80) {
+                interpretation = 'Founder personality strongly aligned with success indicators. Your profile suggests high potential for building and scaling ventures.';
+            } else if (score >= 65) {
+                interpretation = 'Above-average alignment with founder success profile. You demonstrate strong entrepreneurial characteristics with room for development.';
+            } else if (score >= 50) {
+                interpretation = 'Average alignment with founder success profile. You have solid foundational traits with opportunities to strengthen key areas.';
             } else {
-                successHTML = `
-                    <div class="success-section suppressed">
-                        <h3>Success Likelihood Index</h3>
-                        <p class="suppression-message">Success index suppressed due to low validity (${validityResult.validity}/100). 
-                        Validity must be 60 or higher for reliable success prediction.</p>
-                    </div>`;
+                interpretation = 'Below-average alignment with founder success profile. Consider how you might develop key entrepreneurial characteristics.';
             }
-            document.getElementById('success-display').innerHTML = successHTML;
-            
-            // Save to Supabase
+
+            document.getElementById('score-text').textContent = interpretation;
+
+            const dimensionResults = document.getElementById('dimension-results');
+            dimensionResults.innerHTML = '';
+            Object.entries(dimensionScores).forEach(([dim, score]) => {
+                const div = document.createElement('div');
+                div.className = 'dimension-item';
+                div.innerHTML = `<div class="dimension-name">${dim}</div><div class="dimension-value">${score}</div>`;
+                dimensionResults.appendChild(div);
+            });
+
+            // Save report to Supabase with user info and send email
             saveReportToSupabase(score, dimensionScores, name, email);
         }
 
-        function getScoreInterpretation(score) {
-            if (score >= 80) return 'Exceptional founder profile with strong alignment across key dimensions.';
-            if (score >= 60) return 'Strong founder profile with good potential for success.';
-            if (score >= 40) return 'Moderate founder profile with areas for development.';
-            return 'Developing founder profile with significant growth opportunities.';
+        function resetSurvey() {
+            currentQuestion = 0;
+            responses = {};
+            document.getElementById('results-section').classList.remove('active');
+            document.getElementById('button-group').style.display = 'flex';
+            document.querySelectorAll('input[type="radio"]').forEach(i => i.checked = false);
+            document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+            showQuestion(0);
         }
 
-        // Save to Supabase
-        async function saveReportToSupabase(score, dimensionScores, name, email) {
-            try {
-                const reportData = {
-                    overall_trait_score: score,
-                    dimension_scores: dimensionScores,
-                    validity_score: validityResult.validity,
-                    validity_flags: validityResult.flags,
-                    confidence_band: validityResult.confidenceBand,
-                    success_index: successResult.successIndex,
-                    context: contextData,
-                    responses: responses,
-                    user_name: name,
-                    user_email: email
-                };
+        document.addEventListener('change', () => {
+            const q = questions[currentQuestion];
+            document.getElementById('btn-next').disabled = !responses[q.id];
+        });
+
+        // Report Display Functions
+        async function displayReportsList() {
+            const reports = await loadAllReports();
+            const listContainer = document.getElementById('reports-list');
+            const detailContainer = document.getElementById('report-detail');
+            
+            detailContainer.style.display = 'none';
+            
+            if (reports.length === 0) {
+                listContainer.innerHTML = '<p style="text-align: center; color: #666;">No reports yet. Complete a test to generate your first report.</p>';
+                return;
+            }
+            
+            let html = '<div style="display: grid; gap: 15px;">';
+            reports.forEach((report, index) => {
+                const date = new Date(report.created_at).toLocaleString();
+                const scoreColor = report.overall_score >= 80 ? '#27ae60' : report.overall_score >= 65 ? '#2aaa8a' : report.overall_score >= 50 ? '#e67e22' : '#c0152f';
+                html += `
+                    <div style="background: white; border: 2px solid #e0e0e0; border-radius: 8px; padding: 20px; cursor: pointer; transition: all 0.2s;" 
+                         onmouseover="this.style.borderColor='#1f8a70'" 
+                         onmouseout="this.style.borderColor='#e0e0e0'" 
+                         onclick="viewReportDetail('${report.id}')">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>Report #${reports.length - index}</strong>
+                                <div style="font-size: 13px; color: #666; margin-top: 5px;">${date}</div>
+                            </div>
+                            <div style="font-size: 32px; font-weight: bold; color: ${scoreColor};">${report.overall_score}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            listContainer.innerHTML = html;
+        }
+
+        async function viewReportDetail(reportId) {
+            const reports = await loadAllReports();
+            const report = reports.find(r => r.id === reportId);
+            
+            if (!report) return;
+            
+            const detailContainer = document.getElementById('report-detail');
+            const listContainer = document.getElementById('reports-list');
+            
+            listContainer.style.display = 'none';
+            detailContainer.style.display = 'block';
+            
+            // Generate clinical report
+            const html = generateClinicalReport(report);
+            detailContainer.innerHTML = html;
+        }
+
+        function generateClinicalReport(report) {
+            const date = new Date(report.created_at).toLocaleString();
+            const scoreInterpretation = getScoreInterpretation(report.overall_score);
+            
+            let html = `
+                <button onclick="displayReportsList()" style="background: #1f8a70; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin-bottom: 20px;">← Back to Reports</button>
                 
-                const { data, error } = await window.supabaseClient
+                <div style="background: white; border: 2px solid #1f8a70; border-radius: 12px; padding: 30px;">
+                    <h2 style="margin-top: 0; color: #1f8a70;">Clinical Assessment Report</h2>
+                    
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 25px;">
+                        <p style="margin: 5px 0;"><strong>Report ID:</strong> ${report.id.substring(0, 8)}</p>
+                        <p style="margin: 5px 0;"><strong>Date:</strong> ${date}</p>
+                        <p style="margin: 5px 0;"><strong>Overall Score:</strong> <span style="font-size: 24px; font-weight: bold; color: #1f8a70;">${report.overall_score}/100</span></p>
+                        <p style="margin: 5px 0; font-style: italic;">${scoreInterpretation}</p>
+                    </div>
+                    
+                    <h3 style="color: #1f8a70; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px;">Dimension Analysis</h3>
+            `;
+            
+            // Dimension interpretations
+            Object.entries(report.dimension_scores).forEach(([dimension, score]) => {
+                const interpretation = getDimensionInterpretation(dimension, score);
+                const scoreColor = score >= 70 ? '#27ae60' : score >= 40 ? '#2aaa8a' : '#e67e22';
+                html += `
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid ${scoreColor};">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h4 style="margin: 0; color: #2c3e50;">${dimension}</h4>
+                            <span style="font-size: 24px; font-weight: bold; color: ${scoreColor};">${score}</span>
+                        </div>
+                        <p style="margin: 10px 0 0 0; color: #555; line-height: 1.6;">${interpretation}</p>
+                    </div>
+                `;
+            });
+            
+            // Identified strengths
+            const strengths = Object.entries(report.dimension_scores).filter(([_, score]) => score >= 70);
+            if (strengths.length > 0) {
+                html += `
+                    <h3 style="color: #27ae60; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; margin-top: 30px;">✅ Identified Strengths</h3>
+                    <ul style="line-height: 1.8;">
+                `;
+                strengths.forEach(([dimension, score]) => {
+                    html += `<li><strong>${dimension}</strong> (${score}/100): Strong capacity in this area, represents a leadership asset</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            // Development areas
+            const developmentAreas = Object.entries(report.dimension_scores).filter(([_, score]) => score < 40);
+            if (developmentAreas.length > 0) {
+                html += `
+                    <h3 style="color: #e67e22; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; margin-top: 30px;">🔶 Development Areas</h3>
+                    <ul style="line-height: 1.8;">
+                `;
+                developmentAreas.forEach(([dimension, score]) => {
+                    html += `<li><strong>${dimension}</strong> (${score}/100): Opportunity for structured development and coaching</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            // Coaching recommendations
+            html += `
+                <h3 style="color: #1f8a70; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; margin-top: 30px;">📝 Coaching Recommendations</h3>
+                <div style="background: #fff8e6; border-left: 4px solid #e67e22; padding: 20px; border-radius: 8px;">
+            `;
+            
+            const recommendations = getCoachingRecommendations(report.dimension_scores);
+            recommendations.forEach(rec => {
+                html += `<p style="margin: 10px 0;"><strong>${rec.dimension}:</strong> ${rec.recommendation}</p>`;
+            });
+            
+            html += '</div></div>';
+            
+            return html;
+        }
+
+        function getScoreInterpretation(score) {
+            if (score >= 80) return 'Founder personality strongly aligned with success indicators. High potential for building and scaling ventures.';
+            if (score >= 65) return 'Above-average alignment with strong entrepreneurial characteristics. Solid foundation for venture building.';
+            if (score >= 50) return 'Average alignment with solid foundational traits. Areas of strength balanced with development opportunities.';
+            return 'Below-average alignment. Significant development opportunities identified for coaching focus.';
+        }
+
+        function getDimensionInterpretation(dimension, score) {
+            const interpretations = {
+                'Openness': {
+                    high: 'Demonstrates strong exploratory tendencies and comfort with ambiguity. Likely to identify novel opportunities and pivot effectively when needed.',
+                    medium: 'Balanced approach between exploration and execution. Can adapt when necessary while maintaining strategic focus.',
+                    low: 'Prefers structured execution over exploration. Excels at validating existing theses and following proven methodologies.'
+                },
+                'Conscientiousness': {
+                    high: 'Strong attention to detail and process orientation. Likely to maintain rigorous systems and documentation, ensuring operational excellence.',
+                    medium: 'Balances detail orientation with big-picture thinking. Can delegate effectively while maintaining oversight of critical processes.',
+                    low: 'Focuses on vision and strategic direction over operational details. Delegates execution effectively but may need support in process management.'
+                },
+                'Energy & Drive': {
+                    high: 'Exceptional work capacity and resilience. Maintains high output and recovers quickly from setbacks. Monitor for burnout risk.',
+                    medium: 'Sustainable work pace with good recovery patterns. Balances intensity with self-care and team delegation.',
+                    low: 'Measured approach to work intensity. May benefit from energy management strategies and delegation frameworks.'
+                },
+                'Conviction': {
+                    high: 'Strong confidence in strategic direction. Makes decisive commitments and maintains course despite obstacles. Ensure validation mechanisms are in place.',
+                    medium: 'Balanced confidence with openness to feedback. Can commit to direction while remaining receptive to market signals.',
+                    low: 'Thoughtful and measured in commitments. Seeks validation before major decisions. May benefit from decision-making frameworks.'
+                },
+                'Emotional Stability': {
+                    high: 'Exceptional composure under pressure. Maintains steady leadership presence during uncertainty. Strong asset for team morale.',
+                    medium: 'Generally stable with normal stress responses. Manages pressure effectively with appropriate support systems.',
+                    low: 'More reactive to stress and uncertainty. May benefit from emotional regulation strategies and leadership coaching.'
+                },
+                'Skepticism & Adaptability': {
+                    high: 'Independent thinker who questions assumptions. Adapts quickly based on evidence. Ensure team alignment on strategic pivots.',
+                    medium: 'Balances independent thinking with collaborative decision-making. Open to input while maintaining strategic clarity.',
+                    low: 'Values proven approaches and expert guidance. Builds on established frameworks. May need support in rapid adaptation scenarios.'
+                }
+            };
+            
+            const dimData = interpretations[dimension];
+            if (!dimData) return 'Interpretation not available for this dimension.';
+            
+            if (score >= 70) return dimData.high;
+            if (score >= 40) return dimData.medium;
+            return dimData.low;
+        }
+
+        function getCoachingRecommendations(dimensionScores) {
+            const recommendations = [];
+            
+            Object.entries(dimensionScores).forEach(([dimension, score]) => {
+                let rec = '';
+                
+                if (dimension === 'Openness') {
+                    rec = score >= 70 ? 'Leverage exploratory strength for opportunity identification. Ensure validation frameworks prevent over-pivoting.' :
+                          score >= 40 ? 'Maintain balanced approach. Consider structured innovation time to explore adjacent opportunities.' :
+                          'Focus on execution excellence. Partner with exploratory thinkers for strategic optionality.';
+                } else if (dimension === 'Conscientiousness') {
+                    rec = score >= 70 ? 'Leverage process strength for operational excellence. Ensure detail focus doesn\'t slow strategic agility.' :
+                          score >= 40 ? 'Continue balanced approach. Document critical processes while maintaining strategic flexibility.' :
+                          'Delegate operational details. Build strong COO/operations partner to complement visionary focus.';
+                } else if (dimension === 'Energy & Drive') {
+                    rec = score >= 70 ? 'Monitor for burnout. Implement recovery protocols and delegation strategies for sustainable scaling.' :
+                          score >= 40 ? 'Maintain sustainable pace. Continue current energy management and delegation practices.' :
+                          'Develop energy optimization strategies. Focus on high-leverage activities and team empowerment.';
+                } else if (dimension === 'Conviction') {
+                    rec = score >= 70 ? 'Strong conviction is an asset. Implement regular validation checkpoints to ensure market alignment.' :
+                          score >= 40 ? 'Balanced conviction serves you well. Continue integrating feedback while maintaining strategic clarity.' :
+                          'Build decision confidence through validation frameworks. Consider advisory board for strategic guidance.';
+                } else if (dimension === 'Emotional Stability') {
+                    rec = score >= 70 ? 'Leverage composure as leadership strength. Model calm decision-making for team during uncertainty.' :
+                          score >= 40 ? 'Continue effective stress management. Maintain support systems for high-pressure periods.' :
+                          'Develop emotional regulation strategies. Consider executive coaching for leadership presence development.';
+                } else if (dimension === 'Skepticism & Adaptability') {
+                    rec = score >= 70 ? 'Independent thinking is valuable. Ensure team alignment when making strategic pivots.' :
+                          score >= 40 ? 'Balanced approach serves you well. Continue integrating diverse perspectives in decision-making.' :
+                          'Leverage proven frameworks and expert guidance. Build advisory network for strategic validation.';
+                }
+                
+                recommendations.push({ dimension, recommendation: rec });
+            });
+            
+            return recommendations;
+        }
+
+        // Supabase Functions
+        async function saveReportToSupabase(overallScore, dimensionScores, name, email) {
+            try {
+                const { data, error } = await supabaseClient
                     .from('test_reports')
-                    .insert([reportData]);
+                    .insert([
+                        {
+                            overall_score: overallScore,
+                            dimension_scores: dimensionScores,
+                            responses: responses,
+                            user_name: name,
+                            user_email: email
+                        }
+                    ]);
                 
                 if (error) {
-                    console.error('Supabase error:', error);
+                    console.error('Error saving report:', error);
                 } else {
                     console.log('Report saved successfully');
-                    // Send email
-                    await sendResultsEmail(name, email, score, dimensionScores);
+                    // Send email with results
+                    sendResultsEmail(overallScore, dimensionScores, name, email);
                 }
             } catch (err) {
-                console.error('Error saving report:', err);
+                console.error('Error:', err);
             }
         }
 
-        // Send email
-        async function sendResultsEmail(name, email, score, dimensionScores) {
+        async function sendResultsEmail(overallScore, dimensionScores, name, email) {
             try {
+                // Call serverless function to send email
                 const response = await fetch('/api/send-email', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, email, score, dimensionScores, validityResult, successResult })
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        email: email,
+                        overallScore: overallScore,
+                        dimensionScores: dimensionScores
+                    })
                 });
-                
+
+                const data = await response.json();
+
                 if (response.ok) {
-                    console.log('Email sent successfully');
+                    console.log('Email sent successfully to', email);
                 } else {
-                    console.error('Email send failed');
+                    console.error('Failed to send email:', data);
                 }
             } catch (err) {
                 console.error('Error sending email:', err);
             }
         }
 
+        async function loadAllReports() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('test_reports')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                
+                if (error) {
+                    console.error('Error loading reports:', error);
+                    return [];
+                }
+                return data;
+            } catch (err) {
+                console.error('Error:', err);
+                return [];
+            }
+        }
+
+        initSurvey();
     </script>
 </body>
 </html>

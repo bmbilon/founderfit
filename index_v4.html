@@ -1231,12 +1231,13 @@
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         window.supabaseClient = supabaseClient;
 
-/* FOUNDERFIT V5 INSTRUMENT
-   30-question instrument (22 core + 8 validity)
-   - option-order shuffling (kills "2nd option always better" + far-right bias)
-   - reverse-scoring + nonlinear scoring
-   - trait scoring + validity scoring + success index using context priors
-*/
+<!-- PASTE THIS WHOLE BLOCK INTO MANUS (or replace your existing  where questions/scoring live).
+     It includes:
+     - 30-question instrument (22 core + 8 validity)
+     - option-order shuffling (kills “2nd option always better” + far-right bias)
+     - reverse-scoring + nonlinear scoring
+     - trait scoring + validity scoring + success index using context priors (age + domain exp + optional stage/industry/etc)
+-->
 
 
 /* =========================
@@ -1650,6 +1651,8 @@ function buildQuestionsForSession() {
    If you don't, you can still use the scoring functions below.
 ========================= */
 
+const questions = buildQuestionsForSession();
+
 // Expected response structure:
 // responses[q.id] = { dimension, type, value, meta?: {...} }
 // For binary: value is option.key ("A"/"B") OR store traitDir directly.
@@ -1714,119 +1717,103 @@ function itemScore01(q, resp, context) {
 
 function scoreValidity(responsesMap, msTotal = null) {
   let validity = 100;
-  const flags = new Set();
+  const flags = [];
+  let tooPerfectPoints = 0;
 
-  // --- Helpers
-  const getInt = (id) => {
-    const r = responsesMap[id];
-    if (!r) return null;
-    const n = parseInt(r.value, 10);
-    return Number.isFinite(n) ? n : null;
-  };
+  // Attention checks
+  for (const q of questions) {
+    if (!q.validityOnly) continue;
+    const r = responsesMap[q.id];
+    if (!r) continue;
 
-  // Convert a likert item to a "comfort-with-uncertainty" axis score (0..100)
-  // - V3: comfort statement (higher = more comfort) -> normal
-  // - A5: discomfort statement (higher = more discomfort) -> reverse to comfort
-  const comfortScore100 = (id) => {
-    const v = getInt(id);
-    if (v == null) return null;
-    if (id === "A5") {
-      // A5 text: "uncomfortable..." => high raw means low comfort
-      const reversed = 6 - v; // 1..5 -> 5..1
-      return Math.round(((reversed - 1) / 4) * 100);
-    }
-    // default: higher raw = higher comfort
-    return Math.round(((v - 1) / 4) * 100);
-  };
-
-  // --- A) Attention checks (must be correct)
-  // V1 requires Agree (4)
-  {
-    const v1 = getInt("V1");
-    if (v1 != null && v1 !== 4) {
-      flags.add("attention_fail_V1");
-      validity -= 40;
-    }
-    const v7 = getInt("V7");
-    if (v7 != null && v7 !== 2) {
-      flags.add("attention_fail_V7");
-      validity -= 40;
+    if (q.attention && q.attention.requiredValue) {
+      if (parseInt(r.value, 10) !== q.attention.requiredValue) {
+        flags.push(`attention_fail_${q.id}`);
+        // hard-ish fail
+        validity -= 40;
+      }
     }
   }
 
-  // --- Integrity + infrequency
+  // Integrity + infrequency
   {
-    const v6 = getInt("V6");
-    if (v6 != null && v6 < 3) {
-      flags.add("integrity_low");
+    const v6 = responsesMap["V6"];
+    if (v6 && parseInt(v6.value, 10) < 3) {
+      flags.push("integrity_low");
       validity -= 40;
     }
-
-    const v8 = getInt("V8");
-    if (v8 != null && v8 >= 4) {
-      flags.add("random_clicking_admitted");
+    const v8 = responsesMap["V8"];
+    if (v8 && parseInt(v8.value, 10) >= 4) {
+      flags.push("random_clicking_admitted");
       validity -= 35;
     }
   }
 
-  // --- B) "Too perfect"
-  // V2 = Strongly Agree (5) triggers
-  // V5 = Agree or Strongly Agree (>=4) triggers
+  // Too-perfect
   {
-    const v2 = getInt("V2");
-    const v5 = getInt("V5");
-    let hits = 0;
+    const v2 = responsesMap["V2"];
+    if (v2 && parseInt(v2.value, 10) === 5) tooPerfectPoints += 1;
 
-    if (v2 === 5) hits += 1;
-    if (v5 != null && v5 >= 4) hits += 1;
+    const v5 = responsesMap["V5"];
+    if (v5 && parseInt(v5.value, 10) >= 4) tooPerfectPoints += 1;
 
-    if (hits > 0) flags.add("too_perfect_signal");
-    validity -= Math.min(30, hits * 12);
+    if (tooPerfectPoints >= 1) flags.push("too_perfect_signal");
+    validity -= Math.min(30, tooPerfectPoints * 12);
   }
 
-  // --- C) Consistency: A5 vs V3
-  // If they're far apart on the same axis, flag it.
+  // Consistency checks (convert paired items to 0..100 and compare)
+  function likertAsScore100(qid) {
+    const q = questions.find(x => x.id === qid);
+    const r = responsesMap[qid];
+    if (!q || !r) return null;
+
+    let v = clamp(parseInt(r.value, 10), 1, 5);
+    if (q.reverse) v = reverseLikert(v);
+    if (q.nonlinearMap) {
+      const map = { 1: 20, 2: 50, 3: 80, 4: 100, 5: 70 };
+      return map[v] ?? 50;
+    }
+    return normalizeLikert01To100(likertTo01(v));
+  }
+
+  // V3 vs A5 (inverse)
   {
-    const v3c = comfortScore100("V3");
-    const a5c = comfortScore100("A5");
-    if (v3c != null && a5c != null) {
-      const diff = Math.abs(v3c - a5c);
+    const v3 = likertAsScore100("V3");
+    const a5 = likertAsScore100("A5"); // A5 is reverse-scored in scoring, so higher means more comfortable
+    if (v3 != null && a5 != null) {
+      const diff = Math.abs(v3 - a5);
       if (diff > 50) {
-        flags.add("inconsistency_openness");
+        flags.push("inconsistency_openness");
         validity -= 15;
       }
     }
   }
 
-  // V4 vs BCONS3 consistency (both are "stick with commitments")
-  // Use raw-to-100 same direction.
+  // V4 vs BCONS3 (same)
   {
-    const v4 = getInt("V4");
-    const b3 = getInt("BCONS3");
+    const v4 = likertAsScore100("V4");
+    const b3 = likertAsScore100("BCONS3");
     if (v4 != null && b3 != null) {
-      const v4s = Math.round(((v4 - 1) / 4) * 100);
-      const b3s = Math.round(((b3 - 1) / 4) * 100);
-      if (Math.abs(v4s - b3s) > 50) {
-        flags.add("inconsistency_conscientiousness");
+      const diff = Math.abs(v4 - b3);
+      if (diff > 50) {
+        flags.push("inconsistency_conscientiousness");
         validity -= 15;
       }
     }
   }
 
-  // --- Speed check (optional)
-  if (typeof msTotal === "number" && msTotal < 150000) {
-    flags.add("speed_suspicious_fast");
-    validity -= 10;
+  // Optional: response-time anomaly (if you pass msTotal)
+  if (typeof msTotal === "number") {
+    // Very rough: under ~2.5 minutes for 30 items is suspicious for careful reading
+    if (msTotal < 150000) {
+      flags.push("speed_suspicious_fast");
+      validity -= 10;
+    }
   }
 
   validity = clamp(Math.round(validity), 0, 100);
-
-  const confidenceBand =
-    validity >= 80 ? "High" :
-    validity >= 60 ? "Moderate" :
-    "Low";
-
-  return { validity, confidenceBand, flags: Array.from(flags) };
+  const confidenceBand = validity >= 80 ? "High" : validity >= 60 ? "Moderate" : "Low";
+  return { validity, confidenceBand, flags };
 }
 
 /* =========================
@@ -2092,26 +2079,22 @@ E) Display:
             currentQuestion = 0;
             Object.keys(responses).forEach(key => delete responses[key]);
             startTime = Date.now();
-            window.__ffFinishedAt = null;
-            
-            // Ensure header reflects new length (30)
-            document.querySelector('.total-questions').textContent = String(questions.length);
-            
-            showQuizUI();
+            document.getElementById('survey-container').style.display = 'block';
+            document.getElementById('email-section').style.display = 'none';
+            document.getElementById('context-collection').style.display = 'none';
+            document.getElementById('results-section').style.display = 'none';
             showQuestion();
         }
 
         // Show current question
         function showQuestion() {
             const q = questions[currentQuestion];
-            const container = document.getElementById('questions-container');
-            const progress = document.querySelector('.progress-fill');
-            const currentQText = document.querySelector('.current-question');
-            const totalQText = document.querySelector('.total-questions');
+            const container = document.getElementById('question-container');
+            const progress = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
             
             progress.style.width = ((currentQuestion / questions.length) * 100) + '%';
-            currentQText.textContent = currentQuestion + 1;
-            totalQText.textContent = questions.length;
+            progressText.textContent = `Question ${currentQuestion + 1} of ${questions.length}`;
             
             let html = `<h3>${q.text}</h3><div class="options">`;
             
@@ -2145,65 +2128,26 @@ E) Display:
         }
 
         // Select option
-        function selectOption(qId, value, dimension, type) {
+        function selectOption(qId, value, traitDir, dimension, type) {
             responses[qId] = { dimension, type, value };
             document.getElementById('btn-next').disabled = false;
-        }
-
-        // UI State Helpers
-        function showQuizUI() {
-            document.getElementById('questions-container').style.display = 'block';
-            document.getElementById('button-group').style.display = 'flex';
-            document.getElementById('context-collection').style.display = 'none';
-            document.getElementById('email-section').style.display = 'none';
-            document.getElementById('results-section').style.display = 'none';
-        }
-
-        function showContextUI() {
-            document.getElementById('questions-container').style.display = 'none';
-            document.getElementById('button-group').style.display = 'none';
-            document.getElementById('context-collection').style.display = 'block';
-            document.getElementById('email-section').style.display = 'none';
-            document.getElementById('results-section').style.display = 'none';
-        }
-
-        function showEmailUI() {
-            document.getElementById('questions-container').style.display = 'none';
-            document.getElementById('button-group').style.display = 'none';
-            document.getElementById('context-collection').style.display = 'none';
-            document.getElementById('email-section').style.display = 'block';
-            document.getElementById('results-section').style.display = 'none';
-        }
-
-        function showResultsUI() {
-            document.getElementById('questions-container').style.display = 'none';
-            document.getElementById('button-group').style.display = 'none';
-            document.getElementById('context-collection').style.display = 'none';
-            document.getElementById('email-section').style.display = 'none';
-            document.getElementById('results-section').style.display = 'block';
+            
+            // Update visual feedback
+            document.querySelectorAll('.option').forEach(opt => opt.classList.remove('checked'));
+            event.target.closest('.option').classList.add('checked');
         }
 
         // Navigation
         function nextQuestion() {
-            // Guard: must have an answer selected
-            const q = questions[currentQuestion];
-            if (!responses[q.id]) return;
-
             if (currentQuestion < questions.length - 1) {
                 currentQuestion++;
                 showQuestion();
-                return;
+            } else {
+                // All questions answered - show context collection
+                document.getElementById('survey-container').style.display = 'none';
+                document.getElementById('button-group').style.display = 'none';
+                document.getElementById('context-collection').style.display = 'block';
             }
-
-            // Finished the 30 items - mark completion time
-            if (!window.__ffFinishedAt) window.__ffFinishedAt = Date.now();
-            
-            // Update progress to 100%
-            const progress = document.querySelector('.progress-fill');
-            if (progress) progress.style.width = '100%';
-            
-            // Show context collection (age + domain required)
-            showContextUI();
         }
 
         function previousQuestion() {
@@ -2239,17 +2183,17 @@ E) Display:
             
             contextData = { ageBucket, domainExp, stage, industry, founderExp, capital };
             
-            // Calculate scores (must compute validity + gated successIndex)
+            // Calculate scores
             calculateScores();
             
             // Show email collection
-            showEmailUI();
+            document.getElementById('context-collection').style.display = 'none';
+            document.getElementById('email-section').style.display = 'block';
         }
 
         // Calculate scores using new pipeline
         function calculateScores() {
-            // Use completion time if available (for validity speed check)
-            const elapsedMs = window.__ffFinishedAt ? (window.__ffFinishedAt - startTime) : (Date.now() - startTime);
+            const elapsedMs = Date.now() - startTime;
             
             // Convert responses to format expected by scoring functions
             const responsesMap = {};
@@ -2285,11 +2229,12 @@ E) Display:
             }
             
             displayResults(calculatedOverallScore, calculatedDimensionScores, name, email);
-            showResultsUI();
         }
 
         // Display results
         function displayResults(score, dimensionScores, name, email) {
+            document.getElementById('email-section').style.display = 'none';
+            document.getElementById('results-section').style.display = 'block';
             
             // Overall score
             document.getElementById('final-score').textContent = score;
