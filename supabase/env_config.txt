@@ -1,0 +1,10 @@
+# Founderfit Supabase Environment Config
+# Saved: 2026-03-15
+
+PROJECT_URL=https://lcdcwtisiojbtsysjeic.supabase.co
+PROJECT_REF=lcdcwtisiojbtsysjeic
+REGION=East US (North Virginia)
+
+ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxjZGN3dGlzaW9qYnRzeXNqZWljIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5ODgwNTQsImV4cCI6MjA4MzU2NDA1NH0.j0BQsd9kdsiNrwFr-sqg-OelUiGcdXa5Y7cc6qspFMg
+
+DB_PASSWORD=West2026fit!
